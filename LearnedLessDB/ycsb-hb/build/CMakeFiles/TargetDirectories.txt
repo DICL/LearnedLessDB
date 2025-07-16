@@ -1,0 +1,3 @@
+/koo/HyperLearningless/ycsb/build/CMakeFiles/ycsb.dir
+/koo/HyperLearningless/ycsb/build/CMakeFiles/edit_cache.dir
+/koo/HyperLearningless/ycsb/build/CMakeFiles/rebuild_cache.dir

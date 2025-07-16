@@ -1,0 +1,184 @@
+#!/bin/bash
+
+threads=32
+evict=1
+random_order=1
+
+db="hyperlearningless"
+date="03.31_3"
+ops_file=""
+
+data_file_BOOKS_400M="books_400M_uint64"
+lookups_file_BOOKS_400M="books_400M_uint64_equality_lookups_10M"
+data_output_file_BOOKS_400M="books_400M_t${threads}_load"
+lookups_output_file_BOOKS_400M="books_400M_10M_t${threads}"
+
+data_file_BOOKS_600M="books_600M_uint64"
+lookups_file_BOOKS_600M="books_600M_uint64_equality_lookups_10M"
+data_output_file_BOOKS_600M="books_600M_t${threads}_load"
+lookups_output_file_BOOKS_600M="books_600M_10M_t${threads}"
+
+data_file_OSM_400M="osm_cellids_400M_uint64"
+lookups_file_OSM_400M="osm_cellids_400M_uint64_equality_lookups_10M"
+data_output_file_OSM_400M="osm_400M_t${threads}_load"
+lookups_output_file_OSM_400M="osm_400M_10M_t${threads}"
+
+data_file_OSM_600M="osm_cellids_600M_uint64"
+lookups_file_OSM_600M="osm_cellids_600M_uint64_equality_lookups_10M"
+data_output_file_OSM_600M="osm_600M_t${threads}_load"
+lookups_output_file_OSM_600M="osm_600M_10M_t${threads}"
+
+data_file_FB_200M="fb_200M_uint64"
+lookups_file_FB_200M="fb_200M_uint64_equality_lookups_10M"
+data_output_file_FB_200M="fb_200M_t${threads}_load"
+lookups_output_file_FB_200M="fb_200M_10M_t${threads}"
+
+data_file_WIKI_200M="wiki_ts_200M_uint64"
+lookups_file_WIKI_200M="wiki_ts_200M_uint64_equality_lookups_10M"
+data_output_file_WIKI_200M="wiki_200M_t${threads}_load"
+lookups_output_file_WIKI_200M="wiki_200M_10M_t${threads}"
+
+data_file_NORMAL_400M="normal_400M_uint64"
+lookups_file_NORMAL_400M="normal_400M_uint64_equality_lookups_10M"
+data_output_file_NORMAL_400M="normal_400M_t${threads}_load"
+lookups_output_file_NORMAL_400M="normal_400M_10M_t${threads}"
+
+data_file_NORMAL_600M="normal_600M_uint64"
+lookups_file_NORMAL_600M="normal_600M_uint64_equality_lookups_10M"
+data_output_file_NORMAL_600M="normal_600M_t${threads}_load"
+lookups_output_file_NORMAL_600M="normal_600M_10M_t${threads}"
+
+data_file_LOGNORMAL_400M="lognormal_400M_uint64"
+lookups_file_LOGNORMAL_400M="lognormal_400M_uint64_equality_lookups_10M"
+data_output_file_LOGNORMAL_400M="lognormal_400M_t${threads}_load"
+lookups_output_file_LOGNORMAL_400M="lognormal_400M_10M_t${threads}"
+
+data_file_LOGNORMAL_600M="lognormal_600M_uint64"
+lookups_file_LOGNORMAL_600M="lognormal_600M_uint64_equality_lookups_10M"
+data_output_file_LOGNORMAL_600M="lognormal_600M_t${threads}_load"
+lookups_output_file_LOGNORMAL_600M="lognormal_600M_10M_t${threads}"
+
+data_file_UNIFORM_DENSE_400M="uniform_dense_400M_uint64"
+lookups_file_UNIFORM_DENSE_400M="uniform_dense_400M_uint64_equality_lookups_10M"
+data_output_file_UNIFORM_DENSE_400M="uniform_dense_400M_t${threads}_load"
+lookups_output_file_UNIFORM_DENSE_400M="uniform_dense_400M_10M_t${threads}"
+
+data_file_UNIFORM_DENSE_600M="uniform_dense_600M_uint64"
+lookups_file_UNIFORM_DENSE_600M="uniform_dense_600M_uint64_equality_lookups_10M"
+data_output_file_UNIFORM_DENSE_600M="uniform_dense_600M_t${threads}_load"
+lookups_output_file_UNIFORM_DENSE_600M="uniform_dense_600M_10M_t${threads}"
+
+data_file_UNIFORM_SPARSE_400M="uniform_sparse_400M_uint64"
+lookups_file_UNIFORM_SPARSE_400M="uniform_sparse_400M_uint64_equality_lookups_10M"
+data_output_file_UNIFORM_SPARSE_400M="uniform_sparse_400M_t${threads}_load"
+lookups_output_file_UNIFORM_SPARSE_400M="uniform_sparse_400M_10M_t${threads}"
+
+data_file_UNIFORM_SPARSE_600M="uniform_sparse_600M_uint64"
+lookups_file_UNIFORM_SPARSE_600M="uniform_sparse_600M_uint64_equality_lookups_10M"
+data_output_file_UNIFORM_SPARSE_600M="uniform_sparse_600M_t${threads}_load"
+lookups_output_file_UNIFORM_SPARSE_600M="uniform_sparse_600M_10M_t${threads}"
+
+####################################################################
+make -j
+sudo make install
+####################################################################
+
+
+for num in 1 2 3 4 5 6 7 8 9 10; do
+	./.libs/sosd --data_file=${data_file_BOOKS_600M} \
+							 --num_threads=${threads} \
+							 --random_order=${random_order} \
+							 --evict=${evict} > /koo/tests/${db}/${date}/${data_output_file_BOOKS_600M}-${num}.txt
+#							 --ops_file=${ops_file} \
+
+	for num2 in 1 2 3; do
+		./.libs/sosd --lookups_file=${lookups_file_BOOKS_600M} \
+								 --num_threads=${threads} \
+								 --evict=${evict} > /koo/tests/${db}/${date}/${lookups_output_file_BOOKS_600M}_readonly-${num}${num2}.txt
+	done
+
+	./.libs/sosd --data_file=${data_file_OSM_600M} \
+							 --num_threads=${threads} \
+							 --random_order=${random_order} \
+							 --evict=${evict} > /koo/tests/${db}/${date}/${data_output_file_OSM_600M}-${num}.txt
+#							 --ops_file=${ops_file} \
+
+	for num2 in 1 2 3; do
+		./.libs/sosd --lookups_file=${lookups_file_OSM_600M} \
+								 --num_threads=${threads} \
+								 --evict=${evict} > /koo/tests/${db}/${date}/${lookups_output_file_OSM_600M}_readonly-${num}${num2}.txt
+	done
+
+	./.libs/sosd --data_file=${data_file_FB_200M} \
+							 --num_threads=${threads} \
+							 --random_order=${random_order} \
+							 --evict=${evict} > /koo/tests/${db}/${date}/${data_output_file_FB_200M}-${num}.txt
+#							 --ops_file=${ops_file} \
+
+	for num2 in 1 2 3; do
+		./.libs/sosd --lookups_file=${lookups_file_FB_200M} \
+								 --num_threads=${threads} \
+								 --evict=${evict} > /koo/tests/${db}/${date}/${lookups_output_file_FB_200M}_readonly-${num}${num2}.txt
+	done
+
+	./.libs/sosd --data_file=${data_file_WIKI_200M} \
+							 --num_threads=${threads} \
+							 --random_order=${random_order} \
+							 --evict=${evict} > /koo/tests/${db}/${date}/${data_output_file_WIKI_200M}-${num}.txt
+#							 --ops_file=${ops_file} \
+
+	for num2 in 1 2 3; do
+		./.libs/sosd --lookups_file=${lookups_file_WIKI_200M} \
+								 --num_threads=${threads} \
+								 --evict=${evict} > /koo/tests/${db}/${date}/${lookups_output_file_WIKI_200M}_readonly-${num}${num2}.txt
+	done
+
+	./.libs/sosd --data_file=${data_file_NORMAL_600M} \
+							 --num_threads=${threads} \
+							 --random_order=${random_order} \
+							 --evict=${evict} > /koo/tests/${db}/${date}/${data_output_file_NORMAL_600M}-${num}.txt
+#							 --ops_file=${ops_file} \
+
+	for num2 in 1 2 3; do
+		./.libs/sosd --lookups_file=${lookups_file_NORMAL_600M} \
+								 --num_threads=${threads} \
+								 --evict=${evict} > /koo/tests/${db}/${date}/${lookups_output_file_NORMAL_600M}_readonly-${num}${num2}.txt
+	done
+
+	./.libs/sosd --data_file=${data_file_LOGNORMAL_600M} \
+							 --num_threads=${threads} \
+							 --random_order=${random_order} \
+							 --evict=${evict} > /koo/tests/${db}/${date}/${data_output_file_LOGNORMAL_600M}-${num}.txt
+#							 --ops_file=${ops_file} \
+
+	for num2 in 1 2 3; do
+		./.libs/sosd --lookups_file=${lookups_file_LOGNORMAL_600M} \
+								 --num_threads=${threads} \
+								 --evict=${evict} > /koo/tests/${db}/${date}/${lookups_output_file_LOGNORMAL_600M}_readonly-${num}${num2}.txt
+	done
+
+	./.libs/sosd --data_file=${data_file_UNIFORM_DENSE_600M} \
+							 --num_threads=${threads} \
+							 --random_order=${random_order} \
+							 --evict=${evict} > /koo/tests/${db}/${date}/${data_output_file_UNIFORM_DENSE_600M}-${num}.txt
+#							 --ops_file=${ops_file} \
+
+	for num2 in 1 2 3; do
+		./.libs/sosd --lookups_file=${lookups_file_UNIFORM_DENSE_600M} \
+								 --num_threads=${threads} \
+								 --evict=${evict} > /koo/tests/${db}/${date}/${lookups_output_file_UNIFORM_DENSE_600M}_readonly-${num}${num2}.txt
+	done
+
+	./.libs/sosd --data_file=${data_file_UNIFORM_SPARSE_600M} \
+							 --num_threads=${threads} \
+							 --random_order=${random_order} \
+							 --evict=${evict} > /koo/tests/${db}/${date}/${data_output_file_UNIFORM_SPARSE_600M}-${num}.txt
+#							 --ops_file=${ops_file} \
+
+	for num2 in 1 2 3; do
+		./.libs/sosd --lookups_file=${lookups_file_UNIFORM_SPARSE_600M} \
+								 --num_threads=${threads} \
+								 --evict=${evict} > /koo/tests/${db}/${date}/${lookups_output_file_UNIFORM_SPARSE_600M}_readonly-${num}${num2}.txt
+	done
+
+done

@@ -1,0 +1,74 @@
+#!/bin/bash
+
+K=$((1000))
+M=$((1000*1000))
+
+threads=1
+num=$((300*M))
+ops=$((10*M))
+db_path="/mnt-koo/db"
+
+use_existing_db=1
+
+db="hyperbourbon-cba"
+#db="hyperbourbon-always"
+#db="hyperbourbon-lock"
+#db="hyperbourbon-offline"
+date="06.30"
+
+key_size=16
+value_size=64
+
+##############################################
+# MIXGRAPH on
+make -j
+sudo make install
+##############################################
+
+for testnum in 1 2 3; do
+
+	rm -rf /mnt-koo/db/*
+	sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
+	./db_bench --benchmarks="fillseq,readrandom" \
+			--threads=${threads} \
+			--key_size=${key_size} \
+			--value_size=${value_size} \
+			--db=${db_path} \
+			--num=${num} \
+			--writes=$((num / threads)) \
+			--reads=$((ops / threads)) > /koo/tests/${db}/${date}/fillseqreadrandom_300M-${value_size}Bvalue_10M_t1_CompT8_LearnT4_16MBmemt-${testnum}.txt
+
+	rm -rf /mnt-koo/db/*
+	sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
+	./db_bench --benchmarks="fillrandom,readrandom" \
+			--threads=${threads} \
+			--key_size=${key_size} \
+			--value_size=${value_size} \
+			--db=${db_path} \
+			--num=${num} \
+			--writes=$((num / threads)) \
+			--reads=$((ops / threads)) > /koo/tests/${db}/${date}/fillrandomreadrandom_300M-${value_size}Bvalue_10M_t1_CompT8_LearnT4_16MBmemt-${testnum}.txt
+
+#	rm -rf /mnt-koo/db/*
+#	sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
+#	./db_bench --benchmarks="fillrandom" \
+#			--threads=${threads} \
+#			--key_size=${key_size} \
+#			--value_size=${value_size} \
+#			--db=${db_path} \
+#			--num=${num} \
+#			--writes=$((num / threads)) \
+#			--reads=$((ops / threads)) > /koo/tests/${db}/${date}/fillrandom_300M-${value_size}Bvalue_t1_16MBmemt-${testnum}.txt
+#
+
+#	sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
+#	./db_bench --benchmarks="readrandom" \
+#			--use_existing_db=${use_existing_db} \
+#			--threads=${threads} \
+#			--key_size=${key_size} \
+#			--value_size=${value_size} \
+#			--db=${db_path} \
+#			--num=${num} \
+#			--writes=$((num / threads)) \
+#			--reads=$((ops / threads)) > /koo/tests/${db}/${date}/readrandom_300M-${value_size}Bvalue_10M_t1_16MBmemt-${testnum}.txt
+done

@@ -1,0 +1,60 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+
+##
+# *** WORKLOAD CONFIGURATION ***
+recordcount=$((100*1000*1000))  # 100 M
+operationcount=$((10*1000*1000))  # 10 M
+scan_operationcount=$((10*1000*1000))  # 10 M
+field_len=100
+field_cnt=10  # value: 10*100 =~ 1 KB
+#num_threads=10
+
+##
+# build
+cd ../build
+cmake --build . -- -j
+cd -
+ycsb=../build/ycsb
+
+#for req_dist in "uniform"; do
+req_dist="uniform"
+#num_threads=20
+for num in 2 3; do
+	for num_threads in 20; do
+		for wl in a b c; do
+			rm -rf /mnt-koo/*  # clear db
+			sync; echo 1 > /proc/sys/vm/drop_caches
+		  sleep 10s
+			$ycsb \
+				--recordcount=${recordcount} \
+		    --operationcount=${operationcount} \
+			  --fieldlength=${field_len} \
+				--fieldcount=${field_cnt} \
+		    --threads=${num_threads} \
+			  --workloads="l,${wl}" \
+				--distribution=${req_dist} > /koo/tests/hyperlearningless/07.14/l${wl}_100G_10M_t${num_threads}_16MB-WB-SST-${num}.txt
+		done
+	done
+done
+
+for num in 1 2 3; do
+	for num_threads in 32; do
+		for wl in c; do
+			rm -rf /mnt-koo/*  # clear db
+			sync; echo 1 > /proc/sys/vm/drop_caches
+		  sleep 10s
+			$ycsb \
+				--recordcount=${recordcount} \
+		    --operationcount=${operationcount} \
+			  --fieldlength=${field_len} \
+				--fieldcount=${field_cnt} \
+		    --threads=${num_threads} \
+			  --workloads="l,${wl}" \
+				--distribution=${req_dist} > /koo/tests/hyperlearningless/07.14/l${wl}_100G_10M_t${num_threads}_16MB-WB-SST-${num}.txt
+		done
+	done
+done

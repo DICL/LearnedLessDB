@@ -1,0 +1,53 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+username=$( whoami )
+
+##
+# *** WORKLOAD CONFIGURATION ***
+recordcount=$((100*1000*1000))  # 100 M
+operationcount=$((100*1000*1000))  # 100 M
+scan_operationcount=$((10*1000*1000))  # 10 M
+field_len=100
+field_cnt=10  # value: 10*100 =~ 1 KB
+num_threads=80
+max_write_buffer_number=16  # 64MB * 16 = 1GB
+max_background_jobs=40
+
+##
+# build
+cd ../build
+cmake --build . -- -j
+cd -
+ycsb=../build/ycsb
+
+sudo mkdir -p /pmem/rocksdb_$username
+sudo chown -R $username:$username /pmem/rocksdb_$username
+
+for req_dist in "uniform" "zipfian"; do
+  # following this order: https://github.com/brianfrankcooper/YCSB/wiki/Core-Workloads#running-the-workloads
+  rm -rf /pmem/rocksdb_$username/*  # clear db
+  $ycsb \
+    --recordcount=${recordcount} \
+    --operationcount=${operationcount} \
+    --fieldlength=${field_len} \
+    --fieldcount=${field_cnt} \
+    --threads=${num_threads} \
+    --workloads="l,a,b,c,f,d" \
+    --max_write_buffer_number=${max_write_buffer_number} \
+    --max_background_jobs=${max_background_jobs} \
+    --distribution=${req_dist}
+  rm -rf /pmem/rocksdb_$username/*  # clear db
+  $ycsb \
+    --recordcount=${recordcount} \
+    --operationcount=${scan_operationcount} \
+    --fieldlength=${field_len} \
+    --fieldcount=${field_cnt} \
+    --threads=${num_threads} \
+    --workloads="l,e" \
+    --max_write_buffer_number=${max_write_buffer_number} \
+    --max_background_jobs=${max_background_jobs} \
+    --distribution=${req_dist}
+done

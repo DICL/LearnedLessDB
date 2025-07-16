@@ -1,0 +1,37 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+
+##
+# *** WORKLOAD CONFIGURATION ***
+recordcount=$((100*1000*1000))  # 100 M
+operationcount=$((10*1000*1000))  # 10 M
+scan_operationcount=$((10*1000*1000))  # 10 M
+field_len=100
+field_cnt=10  # value: 10*100 =~ 1 KB
+#num_threads=10
+
+##
+# build
+cd ../build
+cmake --build . -- -j
+cd -
+ycsb=../build/ycsb
+
+#for req_dist in "uniform"; do
+req_dist="uniform"
+#num_threads=20
+
+
+rm -rf /mnt-koo/*  # clear db
+sleep 10s
+$ycsb \
+	--recordcount=${recordcount} \
+	--operationcount=${operationcount} \
+	--fieldlength=${field_len} \
+	--fieldcount=${field_cnt} \
+	--threads=20 \
+	--workloads="l,c" \
+	--distribution=${req_dist} > /koo/tests/hyperlearningall/07.15/lc_100G_10M_t20_64MB-WB-SST_hl_test2.txt

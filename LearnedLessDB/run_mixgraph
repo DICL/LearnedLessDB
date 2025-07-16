@@ -1,0 +1,63 @@
+#!/bin/bash
+
+K=$((1000))
+M=$((1000*1000))
+
+threads=32
+num=$((500*M))
+ops=$((50*M))
+get_ratio=0.70
+put_ratio=0.30
+#get_ratio=0.50
+#put_ratio=0.50
+
+#sine_a=200*1000 #light
+#sine_b=0.03
+#sine_d=900*1000
+#sine_a=6*1000 #moderate
+#sine_b=0.03125
+#sine_d=12*1000
+#sine_a=200*1000 #heavy
+#sine_b=0.03
+#sine_d=600*1000
+sine_a=$((200*1000))	# sine 그래프의 세로 길이 (클수록 세로 길어진다)
+sine_b=0.1						# sine 그래프의 가로 길이 (작을수록 가로 넓어진다)
+#sine_b=0.2
+sine_c=0
+sine_d=$((500*1000))	# sine 그래프의 위치 (클수록 저점이 높음)
+
+write_rate=$((400*1000))		# sine 그래프의 시작점 (sine_d와 비슷하게)
+read_rate=$((400*1000))
+
+sine_mix_rate_noise=0.0
+#sine_mix_rate_noise=0.5 #listdb
+
+db="hyperlearningless"
+date="02.03"
+testnum="11"
+#output_file=""
+report_interval_seconds=1
+report_file="/koo/tests/${db}/${date}/mixgraph/test${testnum}.csv"
+
+#####################################
+make -j
+sudo make install
+#####################################
+
+rm -rf /mnt-koo/*
+./db_bench --benchmarks="fillrandom,mixgraph" \
+					 --threads=${threads} \
+					 --num=${num} \
+					 --writes=$((num / threads)) \
+					 --reads=$((ops / threads)) \
+					 -mix_get_ratio=${get_ratio} \
+					 -mix_put_ratio=${put_ratio} \
+					 -sine_a=${sine_a} \
+					 -sine_b=${sine_b} \
+					 -sine_c=${sine_c} \
+					 -sine_d=${sine_d} \
+					 -write_rate=${write_rate} \
+					 -read_rate=${read_rate} \
+					 -report_interval_seconds=${report_interval_seconds} \
+					 -report_file=${report_file} \
+					 -sine_mix_rate_noise=${sine_mix_rate_noise} > /koo/tests/${db}/${date}/test${testnum}_500M_50M_t32_r7w3_a200K_b0.1_d500K_rwrate400K_RET2-52-10.txt

@@ -1,0 +1,382 @@
+// Copyright (c) 2011 The LevelDB Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file. See the AUTHORS file for names of contributors.
+
+#include "table/merger_with_model.h"
+
+#include <algorithm>
+
+#include "hyperleveldb/comparator.h"
+#include "hyperleveldb/iterator.h"
+#include "table/iterator_wrapper.h"
+#include "db/version_set.h"
+#include "koo/learned_index.h"
+
+namespace leveldb {
+
+namespace {
+
+struct preSegment {
+  uint64_t start;
+  uint64_t end;
+  uint32_t size0;
+  uint32_t size1;
+  double k;
+  double b;
+
+  preSegment() : start(0), end(0), size0(0), size1(0), k(0), b(0) {}
+  preSegment(uint64_t _start, uint64_t _end, uint32_t _size0, uint32_t _size1) : start(_start), end(_end), size0(_size0), size1(_size1) {}
+
+  preSegment& operator+=(const preSegment& other) {
+    if (start == 0)
+      this->start = other.start;
+    this->end = other.end;
+    this->size0 += other.size0;
+    this->size1 += other.size1;
+    return *this;
+  }
+  uint32_t size() const { return size0 + size1; }
+
+  void complete() {
+    if (end) {
+      k = (double)size() / (double)(end - start);
+      b = (double)start * k * -1.0;
+    }
+  }
+};
+
+class ModelIter {
+ private:
+  int off_ = 0;
+  int file_off_ = 0;
+  Compaction* c_;
+  const int level_;
+  koo::LearnedIndexData* m_;
+  bool is_f_ = true;
+  bool valid_ = true;
+  koo::Segment curr_;
+
+  inline double get_pos(uint64_t s) { return curr_.k*s+curr_.b; }
+ public:
+  ModelIter(Compaction* c, int level) : 
+            c_(c), level_(level),
+            m_(koo::file_data->GetModelForLookup(c_->input(level_, file_off_)->number)),
+            curr_(m_->GetSegment(off_)) {
+  }
+
+  void Next() {
+    if (is_f_) {
+      is_f_ = false;
+    }
+    else {
+      is_f_ = true;
+      off_++;
+      if (off_ == m_->GetSegmentSize() - 1) {
+        file_off_++;
+        if (file_off_ == c_->num_input_files(level_)) {
+          valid_ = false;
+          return;
+        }
+        m_ = koo::file_data->GetModelForLookup(c_->input(level_, file_off_)->number);
+        off_ = 0;
+      }
+      curr_ = m_->GetSegment(off_);
+    }
+  }
+  uint64_t key() {
+    uint64_t result;
+    if (is_f_)
+      result = curr_.x;
+    else
+      result = curr_.x_last;
+    return result;
+  }
+  bool Valid() {
+    return valid_;
+  }
+  uint32_t GetSize(uint64_t s, uint64_t e) {
+    if (is_f_)
+      return 0;
+    else {
+      return (uint32_t)(get_pos(e)-get_pos(s));
+    }
+  }
+};
+
+class MergeModelIter {
+ private:
+  Compaction* c_;
+  ModelIter* child_[2];
+  uint64_t last_key_;
+  int next_ = -1;
+  bool valid_ = true;
+ public:
+  MergeModelIter(Compaction* c) : c_(c) {
+    for(int i = 0; i < 2; i++)
+      child_[i] = new ModelIter(c_, i);
+    last_key_ = key();
+  }
+
+  preSegment GetNext() {
+    preSegment result;
+    if (valid_) {
+      while(result.size() < 10) {
+        Next();
+        uint64_t next_key = key();
+        if (next_key == 0) {
+          valid_ = false;
+          break;
+        }
+        preSegment next_pre(last_key_, next_key, child_[0]->GetSize(last_key_, next_key), child_[1]->GetSize(last_key_, next_key));
+        last_key_ = next_key;
+        result += next_pre;
+      }
+    }
+    result.complete();
+    return result;
+  }
+
+
+ private:
+  uint64_t key() {
+    if (child_[0]->Valid()) {
+      uint64_t key0 = child_[0]->key();
+      if (child_[1]->Valid()) {
+        uint64_t key1 = child_[1]->key();
+        if (key0 > key1) {
+          next_ = 1;
+          return key1;
+        } else if (key0 < key1) {
+          next_ = 0;
+          return key0;
+        } else {
+          next_ = 2;
+          return key0;
+        }
+      } else {
+        next_ = 0;
+        return key0;
+      }
+    } else {
+      if (child_[1]->Valid()) {
+        uint64_t key1 = child_[1]->key();
+        next_ = 1;
+        return key1;
+      } else {
+        next_ = -1;
+        return 0;
+      }
+    }
+  }
+
+  void Next() {
+    if (next_ == 0 || next_ == 1)
+      child_[next_]->Next();
+    if (next_ == 2) {
+      child_[0]->Next();
+      child_[1]->Next();
+    }
+  }
+
+};
+
+class MergingWithModelIterator : public Iterator {
+ public:
+  MergingWithModelIterator(const Comparator* comparator, Iterator** children, Compaction* c)
+      : comparator_(comparator),
+        children_(new IteratorWrapper[2]),
+        comp_(c), m_iter_(c) {
+    children_[0].Set(children[0]);
+    children_[1].Set(children[1]);
+
+    children_[0].SeekToFirst();
+    children_[1].SeekToFirst();
+    key_buffer_ = new std::vector<std::string>[2];
+    value_buffer_ = new std::vector<std::string>[2];
+  }
+
+  virtual ~MergingWithModelIterator() {
+    delete[] children_;
+  }
+
+  virtual bool Valid() const {
+    return valid_;
+  }
+
+  virtual void SeekToFirst() {
+    MakeBuffer();
+    current_ = buffer_[current_buffer_offset_];
+  }
+
+  virtual void SeekToLast() {
+    fprintf(stderr, "Merger With Model doesn't support SeekToLast()");
+  }
+
+  virtual void Seek(const Slice& target) {
+    fprintf(stderr, "Merger With Model doesn't support Seek()");
+  }
+
+  virtual void Next() {
+    current_buffer_offset_++;
+    if (current_buffer_offset_ >= current_buffer_size_)
+      MakeBuffer();
+    current_ = buffer_[current_buffer_offset_];
+  }
+
+  virtual void Prev() {
+    fprintf(stderr, "Merger With Model doesn't support Prev()");
+  }
+
+  virtual Slice key() const {
+    assert(Valid());
+    return key_buffer_[current_.level][current_.index];
+  }
+
+  virtual Slice value() const {
+    assert(Valid());
+    return value_buffer_[current_.level][current_.index];
+  }
+
+  virtual const Status& status() const {
+    // XXX this value can easily be cached
+    for (int i = 0; i < 2; i++) {
+      if (!children_[i].status().ok()) {
+        return children_[i].status();
+      }
+    }
+    return status_;
+  }
+
+ private:
+  MergingWithModelIterator(const MergingWithModelIterator&);
+  MergingWithModelIterator& operator = (const MergingWithModelIterator&);
+
+  struct BufStruct {
+    uint64_t int_key = 0;
+    int level = 0;
+    int index = 0;
+    BufStruct() : int_key(0), level(0), index(0) {}
+    BufStruct(uint64_t k, int l, int i) : int_key(k), level(l), index(i) {}
+  };
+
+  const Comparator* comparator_;
+  IteratorWrapper* children_;
+  BufStruct current_;
+  Status status_;
+
+  Compaction* comp_;
+
+  BufStruct* top_buffer_ = nullptr;
+  size_t top_buffer_size_ = 0;
+  std::vector<BufStruct> buffer_;
+  std::vector<std::string>* key_buffer_;
+  std::vector<std::string>* value_buffer_;
+  uint64_t current_buffer_offset_;
+  uint64_t current_buffer_size_;
+  MergeModelIter m_iter_;
+  bool valid_ = true;
+
+  uint64_t index;
+  uint64_t y_inf;
+
+  void MakeBuffer() {
+    current_buffer_offset_ = 0;
+    const preSegment ps = m_iter_.GetNext();
+    if (ps.end == 0) {
+      valid_ = false;
+      return;
+    }
+    if (top_buffer_)
+      delete top_buffer_;
+    top_buffer_ = new BufStruct[ps.size() + 40];
+    buffer_.clear();
+    key_buffer_[0].clear();
+    key_buffer_[1].clear();
+    value_buffer_[0].clear();
+    value_buffer_[1].clear();
+    int index_for_0 = 0;
+    int index_for_1 = 0;
+    uint64_t final_y = 0;
+    while(children_[0].Valid()) {
+      Slice key = children_[0].key();
+      uint64_t key_int = get_user_key(key);
+      if (key_int > ps.end) ///////////////////////////////////////////////////////////////////////////
+        break;
+
+      uint64_t y_inf = get_buffer_pos(key_int, ps);
+      while (top_buffer_[y_inf].int_key) {
+        y_inf++;
+      }
+      top_buffer_[y_inf].int_key = key_int;
+      top_buffer_[y_inf].level = 0;
+      top_buffer_[y_inf].index = index_for_0++;
+      final_y = y_inf;
+      key_buffer_[0].push_back(key.ToString());
+      value_buffer_[0].push_back(children_[0].value().ToString());
+      children_[0].Next();
+    }
+
+    uint64_t last_y = 0;
+    while(children_[1].Valid()) {
+      Slice key = children_[1].key();
+      uint64_t key_int = get_user_key(key);
+      if (key_int > ps.end) ///////////////////////////////////////////////////////////////////////////
+        break;
+
+      uint64_t y_inf = get_buffer_pos(key_int, ps);
+      for(int i = last_y; i < y_inf; i++) {
+        if (top_buffer_[i].int_key) {
+          buffer_.push_back(top_buffer_[i]);
+        }
+      }
+
+      y_inf = std::max(last_y, y_inf);
+      bool skip = false;
+      while(top_buffer_[y_inf].int_key) {
+        if (top_buffer_[y_inf].int_key < key_int) {
+          buffer_.push_back(top_buffer_[y_inf++]);
+        } else if (top_buffer_[y_inf].int_key == key_int) {
+          buffer_.push_back(top_buffer_[y_inf++]);
+          skip = true;
+          break;
+        } else {
+          break;
+        }
+      }
+      last_y = y_inf;
+
+      if (!skip) {
+        buffer_.push_back(BufStruct(key_int, 1, index_for_1++));
+        key_buffer_[1].push_back(key.ToString());
+        value_buffer_[1].push_back(children_[1].value().ToString());
+      }
+      children_[1].Next();
+    }
+    for(int i = last_y; i <= final_y; i++) {
+      if (top_buffer_[i].int_key) {
+        buffer_.push_back(top_buffer_[i]);
+      }
+    }
+    
+    current_buffer_size_ = buffer_.size();
+  }
+
+  uint64_t get_user_key(Slice &key) {
+    ParsedInternalKey ikey;
+    ParseInternalKey(key, &ikey);
+    return ikey.user_key.SliceToInteger();
+  }
+  uint64_t get_buffer_pos(uint64_t user_key, preSegment seg) {
+    double result = user_key * seg.k + seg.b;
+    return result < 0 ? 0 : (uint64_t)std::floor(result);
+  }
+  
+};
+
+}  // namespace 
+
+Iterator* NewMergingWithModelIterator(const Comparator* cmp, Iterator** list, Compaction* c) {
+  return new MergingWithModelIterator(cmp, list, c);
+}
+
+}  // namespace leveldb

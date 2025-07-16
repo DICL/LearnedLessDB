@@ -1,0 +1,84 @@
+DB Open
+loading workload (100000000)...
+10%...20%...30%...40%...50%...60%...70%...80%...90%...
+loading workload finished in 28.326 s
+loading workload (10000000)...
+10%...20%...30%...40%...50%...60%...70%...80%...90%...
+loading workload finished in 8.000 s
+==================================================================
+-----------configuration------------
+Clients: 20
+Data: /mnt-koo/db
+-------------------------------------
+Load 100000000 requests in 733.366 seconds.
+Load latency: 143.306 us
+Load IOPS: 0.136 M
+Load median latency: 78.549 us
+Load P999: 1657.979us, P99: 384.046us, P95: 197.496us, P90: 139.232us, P75: 92.649us
+------------------------------------------------------------------
+Load A - IOPS: 0.136 M
+==================================================================
+
+                               Compactions
+Level  Files Size(MB) Time(sec) Read(MB) Write(MB)
+--------------------------------------------------
+  0        1        2       284        0      3780
+  1       14       15       411     9153      9154
+  2      115      133       624    15773     15773
+  3      566     3631       612    21257     21257
+
+start time: 2023/12/26-16:54:58.765879
+starting requests...
+end time: 2023/12/26-16:56:01.954945
+Throughput history is written to: /scratch/koo/logs/leveldb/ycsb_a-uniform.throughput_history.94
+
+                               Compactions
+Level  Files Size(MB) Time(sec) Read(MB) Write(MB)
+--------------------------------------------------
+  0        3        6       288        0      3969
+  1       14       15       432     9670      9670
+  2      113      126       643    16593     16588
+  3      603     3760       665    24033     23975
+
+==================================================================
+-----------configuration------------
+Clients: 20
+Data: /mnt-koo/db
+-------------------------------------
+WAL sync time per request: 0.000 us
+Wait time: 0.000 us
+Write delay time: 0.000 us
+Write memtable time: 0.000
+Finish 10000000 requests in 63.189 seconds.
+read num: 5002572, read avg latency: 230.452 us, read median latency: 127.209 us
+read P999: 16100.096 us, P99: 3042.381 us, P95: 327.865 us, P90: 257.718 us, P75: 187.959 us
+update num: 4997428, update avg latency: 17.246 us, update median latency: 12.417 us
+update P999: 153.030 us, P99: 53.481 us, P95: 31.754us, P90: 25.441 us, P75: 18.295 us
+Work latency: 123.904 us
+Work IOPS: 0.158 M
+Work median latency: 27.714 us
+Work P999: 11322.783us, P99: 1181.258us, P95: 258.262us, P90: 204.809us, P75: 127.577us
+Block read time: 0.000 us
+submit_time: 0.000
+------------------------------------------------------------------
+Workload A Uniform - IOPS: 0.158 M
+==================================================================
+----------------------------------------------------------
+# generated files by flush = 1887
+# generated files by compaction = 17423
+# learned files = 150
+----------------------------------------------------------
+----------------------------------------------------------
+Index block path avg time = 3501.005326 ns,	# index block path = 25625956,	Total time = 89716608443.000000
+Learned model path avg time = -nan ns,	# model path = 0,	Total time = 0.000000
+----------------------------------------------------------
+----------------------------------------------------------
+# PickCompactionLevel() called: 6000
+# PickCompaction() called: 4334
+# Compactions: 4334
+# Compaction output files: 17564
+----------------------------------------------------------
+
+
+MaxFileSizeForLevel: 16777216 16777216 8388608 4194304 4194304 8388608 16777216
+MaxBytesForLevel: 67108864 134217728 536870912 4294967296 34359738368 274877906944 2199023255552
