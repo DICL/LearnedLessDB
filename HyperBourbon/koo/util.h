@@ -88,21 +88,13 @@ namespace koo {
 #endif
       koo::Stats* instance = koo::Stats::GetInstance();
       uint32_t dummy;
-#if THREADSAFE
-      start = (__rdtscp(&dummy)) / koo::reference_frequency;
-#else
       start = (__rdtscp(&dummy) - instance->initial_time) / koo::reference_frequency;
-#endif
     };
 
     void Finish() {
       koo::Stats* instance = koo::Stats::GetInstance();
       uint32_t dummy;
-#if THREADSAFE
-      end = (__rdtscp(&dummy)) / koo::reference_frequency;
-#else
       end = (__rdtscp(&dummy) - instance->initial_time) / koo::reference_frequency;
-#endif
     }
 
   };

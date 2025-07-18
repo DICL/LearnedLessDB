@@ -163,7 +163,18 @@ uint64_t LearnedIndexData::FileLearn(void* arg) {
 		koo::time_filldata += nano.count();
 		koo::num_filldata++;
 #endif
-    self->Learn();
+#if TIME_W
+		std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
+#endif
+    bool res = self->Learn();
+#if TIME_W
+		if (res) {
+			std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
+			koo::onlytrainingtime += nano.count();
+			koo::num_onlytrainingtime++;
+			koo::learn_bytesize += mas->meta->file_size;
+		}
+#endif
     entered = true;
 #if AC_TEST
 		koo::num_learned++;

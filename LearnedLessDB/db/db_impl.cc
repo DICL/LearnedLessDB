@@ -1834,14 +1834,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 		koo::num_inputs[which][level] += compact->compaction->num_input_files(0) + compact->compaction->num_input_files(1);
 		koo::size_inputs[which][level] += stats.bytes_read;
 		koo::size_outputs[which][level] += stats.bytes_written;
-
-		if (which) {
-			koo::merge_bytesize += stats.bytes_written;
-			koo::num_merge_bytesize += compact->outputs.size();
-		} else {
-			koo::learn_bytesize += stats.bytes_written;
-			koo::num_learn_bytesize += compact->outputs.size();
-		}
 	}
 #endif
 /*#if AC_TEST
@@ -1856,6 +1848,8 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 #if MERGE
 	if (compact->merge_model && status.ok()) {
 #if TIME_W
+		koo::merge_bytesize += stats.bytes_written;
+		koo::num_merge_bytesize += compact->outputs.size();
 		std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
 #endif
 #if MAX_MERGE_HISTORY
@@ -2902,6 +2896,10 @@ Status DB::Open(const Options& options, const std::string& dbname,
 #endif
 #if RETRAIN && !RETRAIN2
 	fprintf(stdout, "Learned Model Error: %f, Retraining Threshold: %f\n", koo::learn_model_error, koo::merge_model_error);
+	fflush(stdout);
+#endif
+#if RETRAIN && RETRAIN2
+	fprintf(stdout, "Learned Model Error: %f, Merged Model Error: %f\n", koo::learn_model_error, koo::merge_model_error);
 	fflush(stdout);
 #endif
 

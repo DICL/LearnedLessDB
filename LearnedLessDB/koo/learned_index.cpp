@@ -610,6 +610,8 @@ uint64_t LearnedIndexData::FileLearn(void* arg) {
 					koo::learntime_l0 += nano.count();
 					koo::num_learntime_l0++;
 				}
+				koo::learn_bytesize += mas->meta->file_size;
+				koo::num_learn_bytesize++;
 #endif
 			} //else fprintf(stderr, "\nLearning stopped\n\n");
 			//std::cout << "[Learning Stopped] " << mas->meta->number << " (level: " << self->level << ")\n" << std::endl;

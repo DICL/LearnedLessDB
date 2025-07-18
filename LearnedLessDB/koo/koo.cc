@@ -506,12 +506,12 @@ void Report() {
 #endif
 		std::cout << "Avg learning time per file = " << std::to_string((double)koo::learntime/(double)koo::num_learntime) << " ns,\t# learned files = " << koo::num_learntime << ",\tTotal learning time = " << std::to_string(koo::learntime) << std::endl;
 		std::cout << "Avg learning time per L0 file = " << std::to_string((double)koo::learntime_l0/(double)koo::num_learntime_l0) << " ns,\t# learned L0 files = " << koo::num_learntime_l0 << ",\tTotal L0 files learning time = " << std::to_string(koo::learntime_l0) << std::endl;
-		std::cout << "Avg merging time per compaction = " << std::to_string((double)koo::mergetime/(double)koo::num_mergetime) << " ns,\t# compactions with merging = " << koo::num_mergetime << ",\tTotal merging time = " << std::to_string(koo::mergetime) << std::endl;
+		std::cout << "Avg merging time per compaction = " << std::to_string((double)koo::mergetime/(double)koo::num_mergetime) << " ns,\t# compactions with merging = " << koo::num_mergetime << ",\tTotal merging time = " << std::to_string(koo::mergetime) << " ns\n";
 		std::cout << "\tAvg merging time per file = " << std::to_string((double)koo::mergetime/(double)koo::num_merge_size) << " ns,\t# merged files = " << koo::num_merge_size << std::endl;
 		std::cout << "Avg # of items to learn = " << std::to_string((double)koo::learn_size/(double)koo::num_learn_size) << ",\tnum = " << koo::num_learn_size << std::endl;
 		std::cout << "Avg # of items to merge = " << std::to_string((double)koo::merge_size/(double)koo::num_merge_size) << ",\tnum = " << koo::num_merge_size << std::endl;
-		std::cout << "Total learned bytes: " << koo::learn_bytesize << ",\tnum: " << koo::num_learn_bytesize << std::endl;
-		std::cout << "Total merged bytes: " << koo::merge_bytesize << ",\tnum: " << koo::num_merge_bytesize << std::endl;
+		std::cout << "Total learned bytes: " << koo::learn_bytesize << " B,\tnum: " << koo::num_learn_bytesize << std::endl;
+		std::cout << "Total merged bytes: " << koo::merge_bytesize << " B,\tnum: " << koo::num_merge_bytesize << std::endl;
 		std::cout << "----------------------------------------------------------" << std::endl;
 	}
 #endif

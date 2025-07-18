@@ -84,6 +84,11 @@ uint32_t num_compactiontime[5];
 uint64_t compactiontime2[5];
 uint32_t num_compactiontime2[5];
 
+std::atomic<uint64_t> onlytrainingtime;
+std::atomic<uint64_t> num_onlytrainingtime;
+std::atomic<uint64_t> learn_bytesize;
+std::atomic<uint64_t> num_learn_bytesize;
+
 uint64_t learn_size = 0;
 uint32_t num_learn_size = 0;
 
@@ -269,7 +274,9 @@ void Report() {
 		std::cout << "----------------------------------------------------------" << std::endl;
 		if (koo::num_learntime) {
 			std::cout << "Avg learning time per file = " << std::to_string((double)koo::learntime/(double)koo::num_learntime) << " ns,\t# learned files = " << koo::num_learntime << ",\tTotal time = " << std::to_string(koo::learntime) << std::endl;
-			std::cout << "\nAvg # of items to learn = " << std::to_string((double)koo::learn_size/(double)koo::num_learn_size) << ",\tnum = " << koo::num_learn_size << std::endl;
+			std::cout << "Avg # of items to learn = " << std::to_string((double)koo::learn_size/(double)koo::num_learn_size) << ",\tnum = " << koo::num_learn_size << std::endl;
+			std::cout << "\nOnly training time: " << onlytrainingtime << " ns,\tnum: " << num_onlytrainingtime << std::endl;
+			std::cout << "Total learned bytes: " << learn_bytesize << " B\n";
 		}
 		std::cout << "----------------------------------------------------------" << std::endl;
 	}

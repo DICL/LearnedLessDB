@@ -912,11 +912,7 @@ class PosixEnv : public Env {
 #endif
 
 			uint32_t dummy;
-#if THREADSAFE
-			uint64_t time_start = (__rdtscp(&dummy)) / koo::reference_frequency;
-#else
 			uint64_t time_start = (__rdtscp(&dummy) - instance->initial_time) / koo::reference_frequency;
-#endif
 
 			while (!learning_prepare.empty()) {
 				auto front = learning_prepare.front();

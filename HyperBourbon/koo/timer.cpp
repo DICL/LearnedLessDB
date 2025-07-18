@@ -43,11 +43,7 @@ namespace koo {
 
         if (record) {
             Stats* instance = Stats::GetInstance();
-#if THREADSAFE
-            uint64_t start_absolute = time_started;
-#else
             uint64_t start_absolute = time_started - instance->initial_time;
-#endif
             uint64_t end_absolute = start_absolute + time_elapse;
 #if !THREADSAFE
             started = false;

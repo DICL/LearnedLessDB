@@ -1387,11 +1387,7 @@ Status DBImpl::FinishCompactionOutputFile(CompactionState* compact,
 	meta->smallest = output->smallest;
 	meta->largest = output->largest;
 
-#if THREADSAFE
-	env_->PrepareLearning((__rdtscp(&dummy)) / koo::reference_frequency, level, meta);
-#else
 	env_->PrepareLearning((__rdtscp(&dummy) - instance->initial_time) / koo::reference_frequency, level, meta);
-#endif
 #endif
 
   if (s.ok() && current_entries > 0) {
