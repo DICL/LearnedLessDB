@@ -23,34 +23,22 @@
 #define YCSB_THROUGHPUTHIST 0	// record throughput history (no latency)
 #define YCSB_LOAD_THREAD 0
 #define YCSB_KEY 0				// 키 생성 미리 안하고 operation 동작 직전에 키 생성 (Load만)
-#define YCSB_DB 0		// load db 똑같이 유지 (no read trigger compaction, load 끝나고 db 닫고 다시 열고 남은 compaction 다 하고 닫고 다시 열어서 워크로드) -> 실패
 #define YCSB_COPYDB 1			// SpanDB ycsb load 외 워크로드 전 db copy -> copy한 db에서 워크로드 실험
 #define OFFLINE_FILELEARN 0		// delete db시 남아있는 모든 sst 학습
 #define YCSB_SOSD 0		// records=600M
 
 #define VLOG 1
 #define THREADSAFE 1
-#define USE_BUFFER 0
 #define MULTI_COMPACTION 1
 #define REMOVE_MUTEX 1			// shared_ptr로 Get 위한 current mem, imm, version 관리 // REMOVE_MUTEX2->REMOVE_MUTEX
 #define REMOVE_MUTEX2 1			// SequenceWriteBegin mutex
-#define REMOVE_READTRIGGERCOMP 0
 
 #define LEARN 1
-#define BOPTION 0				// Bourbon default file, level size option
-#define LEARN_MODEL_ERROR 8		// (default) --> learn_model_error로 변경
-#define MERGE_MODEL_ERROR 21		// (default, 최대 52까지 가능) --> merge_model_error로 변경 (retraining threshold)
-//#define IDLE_LEARNING 1		// when learning thread is idle, learn tables with merged models (replace merged models into learned models)
 #define NORMARLIZE_KEY 0		// key - min_key. 선분 k, b만
 
 #define MERGE 1
 #define SKIP_SEG 30			// default. merge_new.cc
-//#define SKIP_SEG 10
-#define MAX_MERGE_HISTORY 0				// 0: off, 1~: merge_history limit (Merge Footprint)
-//#define MAX_MERGE_HISTORY 20
 #define OPT1 1									// Compaction 내 Compare() 횟수 1/n으로 줄여보자	TODO
-#define OPT2 0								// [max(pos-e, min_y), min(pos+e, max_y)]	TODO 성능 실험
-#define OPT4 0								// compaction 전 lq_len < OPT4면 model merging 안하고 learning
 
 #define MODEL_COMPACTION 1		// compaction using merged models
 
@@ -58,31 +46,9 @@
 #define RETRAIN2 1						// 재학습 대신 error bound 확장
 #define RETRAIN3 1						// 재학습하는 파일은 우선순위 낮게
 
-#define L0_MAP 0		// level0_map으로 l0 table 학습
 #define LEVEL0_FILE_LEARN 1000
-#define LEARN_L0 1			// 항상 l0 table 학습 (after flush)
-#define NO_STALL 0			// L0 write stall 없애고 L0 bloom filter 키우기
-
-#define EXTENT_HASH 0		// YCSB_CXX on
-//#define BUCKET_LEN 5001
-//#define BUCKET_LEN 6007
-//#define BUCKET_LEN 7001			// default
-#define BUCKET_LEN 8501			// 37,7001이 더 빠르지만 throughput은 37,8501가 더 높음(BI가 더 적어서. 다시)
-//#define BUCKET_LEN 9001
-//#define EH_N 40
-//#define EH_N 38
-#define EH_N 37						// default
-#define EH_MAX_NUM_SEG 5000		// 7001 40
-//#define EH_MAX_NUM_SEG 2600		// 6007 39
-//#define EH_MAX_NUM_SEG 3000			// default
-#define EXTENT_HASH_DEBUG 0		// /koo/Extent-hashing/linears/pm/data_ycsb/
-
 
 #define SST_LIFESPAN 0	// level별 SST의 lifespan. table 생성(T) -> model 생성(M) -> model 사용(U)
-// TODO workload 끝에 학습 취소되는 테이블들 계산에서 빼야함
-
-#define LEARNING_IO 0
-
 #define MIXGRAPH 0
 #define DEBUG 0
 #define AC_TEST 0
@@ -90,14 +56,10 @@
 #define AC_TEST2 0		// retrainig threshold test
 #define AC_TEST3 0
 #define TIME_W 0
-#define TIME_W_DETAIL 0
 #define TIME_R 0
 #define TIME_R_DETAIL 0
 #define TIME_R_LEVEL 0
 #define MULTI_COMPACTION_CNT 0
-#define MC_DEBUG 0
-#define EH_AC_TEST 0
-#define EH_TIME_R 0
 #define TIME_MODELCOMP 0		// dbformat.h 주의!
 #define MODELCOMP_TEST 0
 #define MODEL_BREAKDOWN 0
@@ -203,10 +165,6 @@ class RWLock {
 };
 #endif
 
-#if OPT4
-extern uint32_t lq_len;
-#endif
-
 #if SST_LIFESPAN
 // TODO start time을 hashmap에 기록? FileMetaData에 기록?
 struct FileLifespanData {
@@ -253,26 +211,9 @@ extern uint32_t num_inputs_compaction_triggered_after_load;		// input files
 extern uint32_t num_outputs_compaction_triggered_after_load;	// output files
 extern int64_t size_inputs_compaction_triggered_after_load;				// input files
 extern int64_t size_outputs_compaction_triggered_after_load;			// output files*/
-#if TIME_W_DETAIL
-extern uint64_t compactiontime_d[2][5];			// 0: w/o merging, 1: w/ merging
-extern uint32_t num_compactiontime_d[2][5];
-extern uint64_t bc_d[5];
-extern uint32_t num_bc_d[5];
-
-extern uint64_t time_filldata;
-extern uint32_t num_filldata;
-#endif
 
 extern std::atomic<uint64_t> file_size[7];		// file size per level
 extern std::atomic<uint64_t> num_files[7];
-#endif
-
-#if MC_DEBUG
-/*extern uint32_t id_twait;
-extern uint64_t time_twait[8];		// sleeping time per compaction thread
-extern uint32_t num_twait[8];*/
-extern std::atomic<uint64_t> time_tAppend;
-extern std::atomic<uint32_t> num_tAppend;
 #endif
 
 #if AC_TEST2
@@ -372,30 +313,6 @@ extern uint64_t num_PickCompactionLevel;
 extern uint64_t num_PickCompaction;
 extern uint64_t num_compactions;
 extern uint64_t num_output_files;
-#endif
-
-#if EH_AC_TEST
-extern uint64_t num_eh_insert;		// succ
-extern uint64_t num_eh_insert_linearacc;
-extern uint64_t num_eh_insert_fail;
-
-extern uint64_t num_eh_get_total;
-extern uint64_t num_eh_get;				// succ
-extern uint64_t num_eh_get_linearacc;
-extern uint64_t num_eh_get_fail;
-#endif
-
-#if EH_TIME_R
-// level 별로 매우 다름
-extern uint64_t eh_insert_time;
-extern uint64_t eh_insert_num;
-extern uint32_t eh_insert_full;
-extern uint32_t eh_insert_toomanysegs;
-
-extern std::atomic<uint64_t> eh_get_time;
-extern std::atomic<uint64_t> eh_get_num;
-extern std::atomic<uint64_t> bi_get_time;
-extern std::atomic<uint64_t> bi_get_num;
 #endif
 
 #if MODELCOMP_TEST

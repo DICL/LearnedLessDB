@@ -8,13 +8,9 @@ set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG")
 
 ##
 # Compiler options
-#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wfatal-errors ")
-#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -I/koo/Bourbon/include ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -march=native -fno-rtti ")
-#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DROCKSDB_FALLOCATE_PRESENT ")
 
-#link_directories(/koo/Bourbon/build)
-link_directories(/koo/HyperLearningless3)
+link_directories(../.)
 
 # Add the directories for the ycsb target
 add_executable(ycsb

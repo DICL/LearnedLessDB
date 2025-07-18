@@ -905,9 +905,6 @@ class PosixEnv : public Env {
 #if THREADSAFE
 			if (prepare_delete) break;
 #endif
-#if OPT4 && !RETRAIN3
-			koo::lq_len = learning_prepare.size();
-#endif
 
 #if RETRAIN3
 			while (!high_q.empty() || !low_q.empty()) {
@@ -959,9 +956,6 @@ class PosixEnv : public Env {
 #if THREADSAFE
 				if (prepare_delete) break;
 #endif
-#if OPT4 && !RETRAIN3
-				koo::lq_len = learning_prepare.size();
-#endif
 			}
 #if THREADSAFE
 			if (prepare_delete) break;
@@ -1012,9 +1006,6 @@ class PosixEnv : public Env {
 			preparing_queue_cv_.Signal();
 		} else learning_prepare.emplace(std::make_pair(level, meta));*/
 		learning_prepare.emplace(std::make_pair(level, meta));
-#if OPT4
-		koo::lq_len = learning_prepare.size();
-#endif
 #endif
 #if THREADSAFE
 		prepare_queue_mutex_.Unlock();

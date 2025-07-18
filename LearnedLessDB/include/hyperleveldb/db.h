@@ -172,10 +172,6 @@ class DB {
   // Release a previously allocated replay iterator.
   virtual void ReleaseReplayIterator(ReplayIterator* iter) = 0;
 
-#if YCSB_DB
-	virtual void WaitForBackground() = 0;
-#endif
-
  private:
   // No copying allowed
   DB(const DB&);

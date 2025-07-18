@@ -129,11 +129,7 @@ Status TableCache::Get(const ReadOptions& options,
 #endif
 #if TIME_R || TIME_R_LEVEL || AC_TEST2
 		std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-#if MAX_MERGE_HISTORY
-		if (model->GetMergeHistory()) {
-#else
 		if (model->Merged()) {
-#endif
 #if TIME_R
 			koo::m_path += nano.count();
 			koo::num_m_path++;
@@ -196,25 +192,6 @@ Status TableCache::Get(const ReadOptions& options,
 	koo::served_i[level].val++;
 #endif
 #endif
-#if L0_MAP
-	if (level == 0) {
-		if (koo::l0_map.find(file_number) != koo::l0_map.end()) {
-			if (koo::l0_map[file_number] > -1) {
-				koo::l0_map[file_number]++;
-				if (koo::l0_map[file_number] > LEVEL0_FILE_LEARN) {
-					koo::l0_map[file_number] = -100;
-					uint32_t dummy;
-					FileMetaData* meta_l0 = new FileMetaData();
-					meta_l0->number = file_number;
-					meta_l0->file_size = meta->file_size;
-					meta_l0->smallest = meta->smallest;
-					meta_l0->largest = meta->largest; 
-					env_->PrepareLearning(0, level, meta_l0);
-				}
-			}
-		} else koo::l0_map.insert({file_number, 1});
-	}
-#endif
   return s;
 }
 
@@ -247,11 +224,7 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
   	return s;
 	}
 #if MERGE
-#if MAX_MERGE_HISTORY
-	bool isMergedModel = model->GetMergeHistory() ? true : false;
-#else
 	bool isMergedModel = model->Merged();
-#endif
 #endif
 
   // Get the position we want to read
@@ -438,10 +411,7 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 		}
 
 #if RETRAIN && !RETRAIN2
-//#if RETRAIN && RETRAIN2		// YCSB_DB
 		// Trigger retraining
-		// TODO 위치를 어디에? Freeze랑 learning이랑 따로 둘까?
-		//model->FreezeModel();
 		if (model->SetRetraining()) {
 			FileMetaData* meta_ = new FileMetaData();
 			meta_->number = file_number;
@@ -459,30 +429,6 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 #endif
 #endif
 #if RETRAIN2 || LOOKUP_ACCURACY
-		/*if (model->GetError() + 10 < 52) {
-			model->SetError(10);
-#if AC_TEST
-			koo::num_erroradded++;
-#endif
-		} else if (model->GetError() + 5 < 52) {
-			model->SetError(5);
-#if AC_TEST
-			koo::num_erroradded++;
-#endif
-		 } else {
-			model->FreezeModel();
-			if (model->SetRetraining()) {
-				FileMetaData* meta_ = new FileMetaData();
-				meta_->number = file_number;
-				meta_->file_size = meta->file_size;
-				meta_->smallest = meta->smallest;
-				meta_->largest = meta->largest;
-				env_->PrepareLearning(level, meta_);
-			}
-#if AC_TEST
-			koo::num_tryretraining++;
-#endif
-		}*/
 		uint64_t last_left = left;
 #endif
 

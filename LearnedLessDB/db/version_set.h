@@ -32,29 +32,6 @@ namespace leveldb {
 
 static uint64_t MaxFileSizeForLevel(unsigned level) {
   assert(level < leveldb::config::kNumLevels);
-#if BOPTION
-  static const uint64_t bytes[] = {2 * 1048576,
-                                   2 * 1048576,
-                                   2 * 1048576,
-                                   2 * 1048576,
-                                   2 * 1048576,
-                                   2 * 1048576,
-                                   2 * 1048576};
-#else
-  /*static const uint64_t bytes[] = {64 * 1048576,
-                                   64 * 1048576,
-                                   32 * 1048576,
-                                   16 * 1048576,
-                                   16 * 1048576,
-                                   32 * 1048576,
-                                   64 * 1048576};*/
-  /*static const uint64_t bytes[] = {16 * 1048576,
-                                   16 * 1048576,
-                                   16 * 1048576,
-                                   16 * 1048576,
-                                   16 * 1048576,
-                                   16 * 1048576,
-                                   16 * 1048576};*/
   static const uint64_t bytes[] = {64 * 1048576,
                                    64 * 1048576,
                                    64 * 1048576,
@@ -62,7 +39,6 @@ static uint64_t MaxFileSizeForLevel(unsigned level) {
                                    64 * 1048576,
                                    64 * 1048576,
                                    64 * 1048576};
-#endif
   return bytes[level];
 }
 

@@ -100,9 +100,6 @@ class DBImpl : public DB {
 #if LEARN
 	Version* GetCurrentVersion();
 	void ReturnCurrentVersion(Version* version);
-#if YCSB_DB
-	void WaitForBackground();
-#endif
 #endif
 
  private:

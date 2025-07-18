@@ -30,9 +30,6 @@ namespace koo {
 	extern uint64_t entry_size;
 	extern float reference_frequency;
 
-#if L0_MAP
-	extern std::unordered_map<uint64_t, int> l0_map;
-#endif
 }
 
 #endif	// LEVELDB_UTIL_H

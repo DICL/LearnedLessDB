@@ -51,9 +51,6 @@ uint64_t sum_waitimm = 0;
 #if YCSB_LOAD_THREAD
 bool only_load = false;
 #endif
-#if OPT4
-uint32_t lq_len = 0;
-#endif
 
 #if SST_LIFESPAN
 std::mutex mutex_lifespan_;
@@ -77,26 +74,9 @@ uint32_t num_inputs_compaction_triggered_after_load = 0;		// input files
 uint32_t num_outputs_compaction_triggered_after_load = 0;	// output files
 int64_t size_inputs_compaction_triggered_after_load = 0;				// input files
 int64_t size_outputs_compaction_triggered_after_load = 0;			// output files*/
-#if TIME_W_DETAIL
-uint64_t compactiontime_d[2][5];			// 0: w/o merging, 1: w/ merging
-uint32_t num_compactiontime_d[2][5];		// level
-uint64_t bc_d[5];
-uint32_t num_bc_d[5];
-
-uint64_t time_filldata;
-uint32_t num_filldata;
-#endif
 
 std::atomic<uint64_t> file_size[7];		// file size per level
 std::atomic<uint64_t> num_files[7];
-#endif
-
-#if MC_DEBUG
-/*uint32_t id_twait = 0;
-uint64_t time_twait[8];		// sleeping time per compaction thread
-uint32_t num_twait[8];*/
-std::atomic<uint64_t> time_tAppend(0);
-std::atomic<uint32_t> num_tAppend(0);
 #endif
 
 #if AC_TEST2
@@ -194,29 +174,6 @@ uint64_t num_compactions = 0;
 uint64_t num_output_files = 0;
 #endif
 
-#if EH_AC_TEST
-uint64_t num_eh_insert = 0;
-uint64_t num_eh_insert_linearacc = 0;
-uint64_t num_eh_insert_fail = 0;
-
-uint64_t num_eh_get_total = 0;
-uint64_t num_eh_get = 0;
-uint64_t num_eh_get_linearacc = 0;
-uint64_t num_eh_get_fail = 0;
-#endif
-
-#if EH_TIME_R
-uint64_t eh_insert_time;
-uint64_t eh_insert_num;
-uint32_t eh_insert_full;
-uint32_t eh_insert_toomanysegs;
-
-std::atomic<uint64_t> eh_get_time;
-std::atomic<uint64_t> eh_get_num;
-std::atomic<uint64_t> bi_get_time;
-std::atomic<uint64_t> bi_get_num;
-#endif
-
 #if MODELCOMP_TEST
 std::atomic<uint64_t> num_inserts[2];
 std::atomic<uint64_t> num_comparisons[2];
@@ -278,25 +235,6 @@ void Report() {
 		}
 		std::cout << "----------------------------------------------------------" << std::endl;
 	}
-#if TIME_W_DETAIL
-	if (koo::num_compactiontime_d[0][0] || koo::num_compactiontime_d[1][2]) {
-		std::cout << "----------------------------------------------------------" << std::endl;
-		std::cout << "Compaction info triggered after load\n";
-		for (int i=0; i<5; i++) {
-			if (!(koo::num_compactiontime_d[0][i] || koo::num_compactiontime_d[1][i])) continue;
-			std::cout << "[ Level " << i << "+" << i+1 << " ]\n";
-			if (koo::num_bc_d[i])
-				std::cout << "\tavg BackgroundCompaction() time: " << std::to_string(koo::bc_d[i]/((double)koo::num_bc_d[i])) << " ns,\tnum: " << koo::num_bc_d[i] << std::endl;
-			if (koo::num_compactiontime_d[0][i])
-				std::cout << "\tw/o merging - avg compaction time: " << std::to_string(koo::compactiontime_d[0][i]/((double)koo::num_compactiontime_d[0][i])) << " ns,\tnum: " << koo::num_compactiontime_d[0][i] << std::endl;
-			if (koo::num_compactiontime_d[1][i])
-				std::cout << "\tw/  merging - avg compaction time: " << std::to_string(koo::compactiontime_d[1][i]/((double)koo::num_compactiontime_d[1][i])) << " ns,\tnum: " << koo::num_compactiontime_d[1][i] << std::endl;
-		}
-		std::cout << "----------------------------------------------------------" << std::endl;
-		std::cout << "FillData avg time: " << std::to_string(koo::time_filldata/(double)koo::num_filldata) << ",\tnum: " << koo::num_filldata << ",\ttotal: " << koo::time_filldata << std::endl;
-		std::cout << "----------------------------------------------------------" << std::endl;
-	}
-#endif
 #endif
 #if TIME_MODELCOMP
 	std::cout << "----------------------------------------------------------" << std::endl;
@@ -374,19 +312,6 @@ void Report() {
 		}
 	}
 	std::cout << "----------------------------------------------------------" << std::endl;
-#endif
-#if MC_DEBUG
-	//if (koo::num_twait[0] || koo::num_twait[1]) {
-	if (koo::num_tAppend) {
-		std::cout << "----------------------------------------------------------" << std::endl;
-		/*std::cout << "Time waiting for compaction per thread\n";
-		for (int i=0; i<8; i++) {
-			std::cout << "[Thread " << i << "] num: " << koo::num_twait[i] << ",\ttotal: " << koo::time_twait[i] << ",\tavg: " << std::to_string(koo::time_twait[i]/(double)koo::num_twait[i]) << std::endl;
-		}*/
-		std::cout << "Total time spent on AddRecord: " << koo::time_tAppend << ",\tnum: " << koo::num_tAppend << std::endl;
-		std::cout << "Avg: " << std::to_string(koo::time_tAppend/(double)koo::num_tAppend) << std::endl;
-		std::cout << "----------------------------------------------------------" << std::endl;
-	}
 #endif
 #if AC_TEST2
 	std::cout << "----------------------------------------------------------" << std::endl;
@@ -574,26 +499,6 @@ void Report() {
 		std::cout << "# PickCompaction() called: " << koo::num_PickCompaction << std::endl;
 		std::cout << "# Compactions: " << koo::num_compactions << std::endl;
 		std::cout << "# Compaction output files: " << koo::num_output_files << std::endl;
-		std::cout << "----------------------------------------------------------" << std::endl;
-	}
-#endif
-#if EH_AC_TEST
-	if (koo::num_eh_insert) {
-		std::cout << "----------------------------------------------------------" << std::endl;
-		std::cout << "# succeed insert: " << koo::num_eh_insert << "\t# failed insert: " << koo::num_eh_insert_fail << std::endl;
-		std::cout << "# succeed get: " << koo::num_eh_get << "\t# failed get: " << koo::num_eh_get_fail << std::endl;
-		std::cout << "# total get: " << koo::num_eh_get_total << std::endl;
-		std::cout << "----------------------------------------------------------" << std::endl;
-	}
-#endif
-#if EH_TIME_R
-	if (koo::eh_get_num || koo::bi_get_num) {
-		std::cout << "----------------------------------------------------------" << std::endl;
-		std::cout << "* EH_N: " << EH_N << ", BUCKET_LEN: " << BUCKET_LEN << ", EH_MAX_NUM_SEG: " << EH_MAX_NUM_SEG << std::endl;
-		std::cout << "* Failed Insert (Full bucket: " << koo::eh_insert_full << ", Too many segs: " << koo::eh_insert_toomanysegs << ")\n";
-		std::cout << "Avg EH Insert time: " << std::to_string(koo::eh_insert_time/(double)koo::eh_insert_num) << ",\t#: " << koo::eh_insert_num << std::endl;
-		std::cout << "Avg EH Get time: " << std::to_string(koo::eh_get_time/(double)koo::eh_get_num) << ",\t#: " << koo::eh_get_num << std::endl;
-		std::cout << "Avg BI Get time: " << std::to_string(koo::bi_get_time/(double)koo::bi_get_num) << ",\t#: " << koo::bi_get_num << std::endl;
 		std::cout << "----------------------------------------------------------" << std::endl;
 	}
 #endif

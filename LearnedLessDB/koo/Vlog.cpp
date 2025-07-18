@@ -39,12 +39,6 @@ VLog::VLog(const std::string& vlog_name) : writer(nullptr), reader(nullptr), cur
 }*/
 
 uint64_t VLog::AddRecord(const Slice& key, const Slice& value) {
-#if MC_DEBUG
-	std::chrono::system_clock::time_point StartTime;
-	//if (koo::count_compaction_triggered_after_load) {
-		StartTime = std::chrono::system_clock::now();
-	//}
-#endif
   std::string buf;
   PutLengthPrefixedSlice(&buf, key);
   PutVarint32(&buf, value.size());
@@ -71,13 +65,6 @@ uint64_t VLog::AddRecord(const Slice& key, const Slice& value) {
   } else {
     count_pos.fetch_add(buf.size());
   }
-#if MC_DEBUG
-	//if (koo::count_compaction_triggered_after_load) {
-		std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-		koo::time_tAppend += nano.count();
-		koo::num_tAppend++;
-	//}
-#endif
   return result;
 }
 

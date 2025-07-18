@@ -19,8 +19,4 @@ namespace koo {
 	uint64_t entry_size = 0;
 	float reference_frequency = 2.5;		// apache
 	//float reference_frequency = 2.6;	// bourbon default
-
-#if L0_MAP
-	std::unordered_map<uint64_t, int> l0_map;
-#endif
 }

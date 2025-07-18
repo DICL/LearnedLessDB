@@ -11,7 +11,6 @@
 #include "koo/util.h"
 #include "koo/plr.h"
 #include "koo/koo.h"
-#include "koo/extenthash.h"
 #include "port/port.h"
 
 
@@ -20,9 +19,6 @@ using leveldb::Slice;
 using leveldb::Version;
 using leveldb::FileMetaData;
 
-#if EXTENT_HASH
-struct Extent;
-#endif
 
 namespace leveldb { class FileMetaData; }
 
@@ -88,28 +84,10 @@ namespace koo {
 #endif
 #endif
 #if MERGE
-#if MAX_MERGE_HISTORY
-        uint32_t merge_history;			// 0: learned, 1~: merged
-#else
 				bool merged;
-#endif
 #if RETRAIN
 				std::atomic<bool> retraining;
 #endif
-#endif
-#if EXTENT_HASH
-				struct Bucket {
-					Bucket() : empty(true) {}
-
-					bool empty;
-					uint64_t key_x;
-					uint64_t key_x_last;
-					uint32_t seg_num;
-				};
-
-				Bucket buckets[BUCKET_LEN];
-				std::atomic<bool> hashed;
-				bool hashed_not_atomic;
 #endif
     public:
 #if LEARN
@@ -176,49 +154,16 @@ namespace koo {
 
 #if MERGE
 #if RETRAIN
-#if EXTENT_HASH
-#if MAX_MERGE_HISTORY
-        explicit LearnedIndexData(uint64_t number) : file_number(number), error(koo::learn_model_error), learned(false), 
-						deleted(false), deleted_not_atomic(false),
-						aborted(false), learning(false), learned_not_atomic(false), filled(false), level(0), cost(0), 
-						retraining(false),
-						merge_history(0),
-						hashed(false), hashed_not_atomic(false) {};
-#else			// MAX_MERGE_HISTORY
-        explicit LearnedIndexData(uint64_t number) : file_number(number), error(koo::learn_model_error), learned(false), 
-						deleted(false), deleted_not_atomic(false),
-						aborted(false), learning(false), learned_not_atomic(false), filled(false), level(0), cost(0), 
-						retraining(false),
-						merged(false),
-						hashed(false), hashed_not_atomic(false) {};
-#endif		// MAX_MERGE_HISTORY
-#else				// EXTENT_HASH
-#if MAX_MERGE_HISTORY
-        explicit LearnedIndexData(uint64_t number) : file_number(number), error(koo::learn_model_error), learned(false), 
-						deleted(false), deleted_not_atomic(false),
-						aborted(false), learning(false), learned_not_atomic(false), filled(false), level(0), cost(0), 
-						retraining(false),
-						merge_history(0) {};
-#else			// MAX_MERGE_HISTORY
         explicit LearnedIndexData(uint64_t number) : file_number(number), error(koo::learn_model_error), learned(false), 
 						deleted(false), deleted_not_atomic(false),
 						aborted(false), learning(false), learned_not_atomic(false), filled(false), level(0), cost(0), 
 						retraining(false),
 						merged(false) {};
-#endif		// MAX_MERGE_HISTORY
-#endif			// EXTENT_HASH
 #else					// RETRAIN
-#if MAX_MERGE_HISTORY
-        explicit LearnedIndexData(uint64_t number) : file_number(number), error(koo::learn_model_error), learned(false), 
-						deleted(false), deleted_not_atomic(false),
-						aborted(false), learning(false), learned_not_atomic(false), filled(false), level(0), cost(0), 
-						merge_history(0) {};
-#else
         explicit LearnedIndexData(uint64_t number) : file_number(number), error(koo::learn_model_error), learned(false), 
 						deleted(false), deleted_not_atomic(false),
 						aborted(false), learning(false), learned_not_atomic(false), filled(false), level(0), cost(0), 
 						merged(false) {};
-#endif		// MAX_MERGE_HISTORY
 #endif				// RETRAIN
 #else						// MERGE
         explicit LearnedIndexData(uint64_t number) : file_number(number), error(koo::learn_model_error), learned(false), 
@@ -249,14 +194,8 @@ namespace koo {
 #endif
 
 #if MERGE
-#if MAX_MERGE_HISTORY
-				void SetMergedModel(std::vector<Segment>& segs, uint32_t history);
-				bool CheckMergeHistory();
-				uint32_t GetMergeHistory();
-#else
 				void SetMergedModel(std::vector<Segment>& segs);
 				bool Merged();
-#endif
 #if RETRAIN
 				//bool InitModelForRetraining();
 				//bool Retraining();
@@ -264,13 +203,6 @@ namespace koo {
 				void UnfreezeModel();
 				bool SetRetraining();
 #endif
-#endif
-#if EXTENT_HASH
-				void InitBuckets();
-				bool InsertExtentImpl(uint64_t bucket_key, Extent& e, uint32_t value);
-				bool InsertExtent(Extent e, uint32_t value);
-				bool GetExtent(uint64_t key, uint32_t& v);
-				bool Hashed();
 #endif
         
         // Learning function and checker (check if this model is available)

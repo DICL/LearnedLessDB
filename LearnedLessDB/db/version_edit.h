@@ -105,9 +105,6 @@ class VersionEdit {
 
  private:
   friend class VersionSet;
-#if LEARN_L0
-  friend class DBImpl;
-#endif
 
   typedef std::set< std::pair<int, uint64_t> > DeletedFileSet;
 

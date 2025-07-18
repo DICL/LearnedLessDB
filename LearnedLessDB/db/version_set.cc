@@ -27,29 +27,6 @@ namespace leveldb {
 
 static double MaxBytesForLevel(unsigned level) {
   assert(level < leveldb::config::kNumLevels);
-#if BOPTION
-  static const double bytes[] = {10 * 1048576.0,
-                                 10 * 1048576.0,
-                                 100 * 1048576.0,
-                                 1000 * 1048576.0,
-                                 10000 * 1048576.0,
-                                 100000 * 1048576.0,
-                                 1000000 * 1048576.0};
-#else
-  /*static const double bytes[] = {64 * 1048576.0,
-                                 128 * 1048576.0,
-                                 512 * 1048576.0,
-                                 4096 * 1048576.0,
-                                 32768 * 1048576.0,
-                                 262144 * 1048576.0,
-                                 2097152 * 1048576.0};*/
-  /*static const double bytes[] = {64 * 1048576.0,
-                                 64 * 1048576.0,
-                                 64 * 10 * 1048576.0,
-                                 64 * 100 * 1048576.0,
-                                 64 * 1000 * 1048576.0,
-                                 64 * 10000 * 1048576.0,
-                                 64 * 100000 * 1048576.0};*/
   static const double bytes[] = {256 * 1048576.0,						// 256 MB
                                  256 * 1048576.0,						// 256 MB
                                  256 * 10 * 1048576.0,			// 2.56 GB
@@ -57,15 +34,6 @@ static double MaxBytesForLevel(unsigned level) {
                                  256 * 1000 * 1048576.0,		// 256 GB
                                  256 * 10000 * 1048576.0,
                                  256 * 100000 * 1048576.0};
-  /*static const double bytes[] = {256 * 1048576.0,						// 256 MB
-                                 256 * 1048576.0,						// 256 MB
-                                 256 * 4 * 1048576.0,				// 1.024 GB
-                                 256 * 16 * 1048576.0,			// 4.096 GB
-                                 256 * 64 * 1048576.0,			// 16.384 GB
-                                 256 * 256 * 1048576.0,
-                                 256 * 100000 * 1048576.0};*/
-  // util/options.cc memtable size
-#endif
   return bytes[level];
 }
 
@@ -973,34 +941,8 @@ VersionSet::VersionSet(const std::string& dbname,
 }
 
 VersionSet::~VersionSet() {
-/*#if EXTENT_HASH_DEBUG
-	for (const auto& entry : std::experimental::filesystem::directory_iterator("/koo/Extent-hashing/linears/pm/data_ycsb/merged/"))
-		std::experimental::filesystem::remove_all(entry.path());
-	for (const auto& entry : std::experimental::filesystem::directory_iterator("/koo/Extent-hashing/linears/pm/data_ycsb/learned/"))
-		std::experimental::filesystem::remove_all(entry.path());
-	for (unsigned level=0; level<config::kNumLevels; level++) {
-		for (size_t i=0; i<current_->files_[level].size(); i++) {
-			FileMetaData* f = current_->files_[level][i];
-			koo::LearnedIndexData* model = koo::file_data->GetModel(f->number);
-			if (model->Learned()) {
-				if (model->GetMergeHistory()) {
-					std::ofstream ofs("/koo/Extent-hashing/linears/pm/data_ycsb/merged/segs_"+std::to_string(f->number)+".txt");
-					for (auto& s : model->string_segments) ofs << s.x << " " << s.x_last << std::endl;
-					ofs.close();
-				} else {
-					std::ofstream ofs("/koo/Extent-hashing/linears/pm/data_ycsb/learned/segs_"+std::to_string(f->number)+".txt");
-					for (auto& s : model->string_segments) ofs << s.x << " " << s.x_last << std::endl;
-					ofs.close();
-				}
-			}
-		}
-	}
-#endif*/
 #if LEARN
 	current_->WriteModel();
-	//std::cout << "\nwrite_buffer_size: " << Options().write_buffer_size << std::endl;
-	//std::cout << "MaxFileSizeForLevel: " << MaxFileSizeForLevel(0) << " " << MaxFileSizeForLevel(1) << " " <<	MaxFileSizeForLevel(2) << " " << MaxFileSizeForLevel(3) << " " << MaxFileSizeForLevel(4) << " " << MaxFileSizeForLevel(5) << " " << MaxFileSizeForLevel(6) << std::endl;
-	//std::cout << "MaxBytesForLevel: " << (uint64_t)MaxBytesForLevel(0) << " " << (uint64_t)MaxBytesForLevel(1) << " " << (uint64_t)MaxBytesForLevel(2) << " " << (uint64_t)MaxBytesForLevel(3) << " " << (uint64_t)MaxBytesForLevel(4) << " " << (uint64_t)MaxBytesForLevel(5) << " " << (uint64_t)MaxBytesForLevel(6) << std::endl;
 #endif
   current_->Unref();
   assert(dummy_versions_.next_ == &dummy_versions_);  // List must be empty

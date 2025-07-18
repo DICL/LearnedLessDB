@@ -35,7 +35,7 @@ int main(int argc, char* argv[]){
   }
 
   // dbpath
-  std::string dbpath("./mnt-koo");
+  std::string dbpath("/mnt-koo");
   std::string data_dir = dbpath + "/db";
 
   // db options
