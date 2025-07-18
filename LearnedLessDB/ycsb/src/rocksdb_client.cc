@@ -1,49 +1,9 @@
 #include "rocksdb_client.h"
 #include "algorithm"
 #include "math.h"
-
-//#include "util/random.h"
 #include "koo/koo.h"
 
 namespace ycsbc {
-
-/*class RandomGenerator {
-private:
-	std::string data_;
-	int pos_;
-
-public:
-	RandomGenerator() {
-		leveldb::Random rnd(301);
-		std::string piece;
-		size_t len = 100;
-		int raw = static_cast<int>(len);			// CompressibleString()
-		while (data_.size() < 1048576) {
-			std::string raw_data;				// RandomString()
-			raw_data.resize(raw);
-			for (int i=0; i<raw; i++) {
-				raw_data[i] = static_cast<char>(' ' + rnd.Uniform(95));
-			}
-			piece.clear();
-			while (piece.size() < len) {
-				piece.append(raw_data);
-			}
-			piece.resize(len);
-
-			data_.append(piece);
-		}
-		pos_ = 0;
-	}
-
-	leveldb::Slice Generate(size_t len) {
-		if (pos_ + len > data_.size()) {
-			pos_ = 0;
-			if (!(len < data_.size())) std::cout << "ERROR RandomGenerator!!!!\n";
-		}
-		pos_ += len;
-		return leveldb::Slice(data_.data() + pos_ - len, len);
-	}
-};*/
 
 #if YCSB_WRAPPER
 RocksDBClient::RocksDBClient(WorkloadProxy* workload_proxy, int num_threads,
@@ -126,15 +86,6 @@ RocksDBClient::~RocksDBClient() {
 void RocksDBClient::run() { 
   if (workload_proxy_->is_load()) {
     Load();
-/*#if YCSB_DB
-		printf("time: %s\n", GetDayTime().c_str());
-		db_->WaitForBackground();
-		std::string stat_str2;
-	 	db_->GetProperty("leveldb.stats", &stat_str2);
-		printf("\n%s\n", stat_str2.c_str());
-		printf("time: %s\n", GetDayTime().c_str());
-		fflush(stdout);
-#endif*/
   } else {
     Work();
   }

@@ -1,5 +1,4 @@
 //#include "rocksdb/options.h"
-//#include "/koo/Bourbon/include/rocksdb/options.h"
 #include "hyperleveldb/options.h"
 #include "src/rocksdb_client.h" 
 #include "src/config.h"
@@ -35,23 +34,8 @@ int main(int argc, char* argv[]){
     workloads.push_back(wl);
   }
 
-  //for (const auto& entry : std::experimental::filesystem::directory_iterator("/mnt-koo/"))			// KOO
-  	//std::experimental::filesystem::remove_all(entry.path());
-  //for (const auto& entry : std::experimental::filesystem::directory_iterator("/koo/HyperLearningless/koo/data/"))			// KOO
-  	//std::experimental::filesystem::remove_all(entry.path());
-  //for (const auto& entry : std::experimental::filesystem::directory_iterator("/raid1/"))			// KOO
-  	//std::experimental::filesystem::remove_all(entry.path());
-#if EXTENT_HASH_DEBUG
-	std::remove("/koo/Extent-hashing/linears/pm/data_ycsb/eh_get_time.txt");
-  for (const auto& entry : std::experimental::filesystem::directory_iterator("/koo/Extent-hashing/linears/pm/data_ycsb/merged/"))
-  	std::experimental::filesystem::remove_all(entry.path());
-  for (const auto& entry : std::experimental::filesystem::directory_iterator("/koo/Extent-hashing/linears/pm/data_ycsb/learned/"))
-  	std::experimental::filesystem::remove_all(entry.path());
-#endif
-
   // dbpath
-  //std::string dbpath("/koo/ycsb_data");		// SATA Disk
-  std::string dbpath("/mnt-koo");				// NVMe SSD
+  std::string dbpath("./mnt-koo");
   std::string data_dir = dbpath + "/db";
 
   // db options
@@ -62,14 +46,11 @@ int main(int argc, char* argv[]){
 #if MULTI_COMPACTION
   options.num_background_jobs = std::stoi(common_props.GetProperty("max_background_jobs"));
 #endif
-#if LEARN_MODEL_ERROR || 1
 	koo::learn_model_error = std::stod(common_props.GetProperty("learned_model_error_bound"));
-#endif
-#if MERGE_MODEL_ERROR || 1
 	// retraining threshold
 	koo::merge_model_error = std::stod(common_props.GetProperty("merged_model_error_bound"));
-#endif
-  // Copy DB //KOO
+
+  // Copy DB
 #if YCSB_COPYDB
 	if (copy_db) {
 	  fprintf(stdout, "%s: Copy DB start\n", GetDayTime().c_str());

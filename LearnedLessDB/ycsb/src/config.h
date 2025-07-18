@@ -58,24 +58,6 @@ utils::Properties gen_workload_props(const char wl_char, const utils::Properties
       wp.SetProperty("workloadname", "Workload F");
       break;
     }
-#if YCSB_WRAPPER
-    case 'u': {
-      wp.SetProperty("readproportion", "0.1"); 
-      wp.SetProperty("updateproportion", "0.9");
-      wp.SetProperty("scanproportion", "0"); 
-      wp.SetProperty("insertproportion", "0");
-      wp.SetProperty("workloadname", "Workload U");
-      break;
-    }
-    case 'r': {
-      wp.SetProperty("readproportion", "0.9"); 
-      wp.SetProperty("updateproportion", "0.1");
-      wp.SetProperty("scanproportion", "0"); 
-      wp.SetProperty("insertproportion", "0");
-      wp.SetProperty("workloadname", "Workload R");
-      break;
-    }
-#endif
 #if YCSB_SOSD
     case 'x': {		// read-heavy
       wp.SetProperty("readproportion", "0.9"); 
@@ -112,12 +94,9 @@ utils::Properties gen_workload_props(const char wl_char, const utils::Properties
 
 void set_default_props(utils::Properties* props) {
 	props->SetProperty("recordcount", "500000000"); // number of records
-	//props->SetProperty("recordcount", "100000000"); // number of records
 	props->SetProperty("operationcount", "10000000"); // number of operations 
 	props->SetProperty("fieldlength", "64");
 	props->SetProperty("fieldcount", "1");
-	//props->SetProperty("fieldlength", "100");
-	//props->SetProperty("fieldcount", "10");
 	props->SetProperty("readallfields", "true");
 	props->SetProperty("requestdistribution", "uniform");
   props->SetProperty("maxscanlength", "100");
@@ -126,12 +105,8 @@ void set_default_props(utils::Properties* props) {
   props->SetProperty("threadcount", "1");
   props->SetProperty("max_write_buffer_number", "2");
   props->SetProperty("max_background_jobs", "2");
-#if LEARN_MODEL_ERROR || 1
   props->SetProperty("learned_model_error_bound", "8");
-#endif
-#if MERGE_MODEL_ERROR || 1
   props->SetProperty("merged_model_error_bound", "21");
-#endif
 }
 
 void parse_command_line_arguments(int argc, char* argv[], utils::Properties* props, std::vector<char>* wl_chars) {
@@ -150,12 +125,8 @@ void parse_command_line_arguments(int argc, char* argv[], utils::Properties* pro
     { "operationcount", required_argument, 0, 0 },
     { "max_write_buffer_number", required_argument, 0, 0 },
     { "max_background_jobs", required_argument, 0, 0 },
-#if LEARN_MODEL_ERROR || 1
     { "learned_model_error_bound", required_argument, 0, 0 },
-#endif
-#if MERGE_MODEL_ERROR || 1
     { "merged_model_error_bound", required_argument, 0, 0 },
-#endif
     { 0, 0, 0, 0 }
   };
   const static char* optstring = "n:t:w:d:";

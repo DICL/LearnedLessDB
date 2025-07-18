@@ -16,10 +16,10 @@
 #include <mutex>
 #include <condition_variable>
 
-#define BOURBON_PLUS 1				// HyperBourbon (default, HyperBourbon-CBA) (model mutex 문제 줄이고 model 삭제해주는거) 
+#define BOURBON_PLUS 1				// HyperBourbon(CBA)
 
-#define LEARNING_ALL 0				// HyperBourbon-always (HyperLearningAll, no cba) TODO BLEARN 빼야하는거도 있음. 나중에 코드 다시 확인
-#define BOURBON_OFFLINE 0			// HyperBourbon-offline (HyperWiscKey, no learning, no cba)
+#define LEARNING_ALL 0				// HyperBourbon(Always) (BOURBON_PLUS must be on)
+#define BOURBON_OFFLINE 0			// HyperWiscKey (BOURBON_PLUS must be on)
 
 #define YCSB_CXX 1
 #define YCSB_WRAPPER 1		// produce requests before run workloads + skip writing latency files
@@ -44,9 +44,8 @@
 #define BLEARN 1				// LEARN for Bourbon
 
 #define LEARN_MODEL_ERROR 8
-//#define LEARN_TRIGGER_TIME 50000000
-#define LEARN_TRIGGER_TIME 170000000		// Bourbon에서는 4MB file 학습하는데 최대 시간이 40ms여서 T(wait)=50ms로 설정함
-																			// HBourbon은 16MB file이니까 T(wait)=170ms ? TODO
+#define LEARN_TRIGGER_TIME 50000000
+//#define LEARN_TRIGGER_TIME 170000000
 #define MULTI_LEARNING 1		// the number of learning threads (0: off)
 
 #define MIXGRAPH 0
