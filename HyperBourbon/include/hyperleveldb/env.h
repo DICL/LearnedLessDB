@@ -18,7 +18,6 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include "hyperleveldb/status.h"
-#include "koo/koo.h"
 
 namespace leveldb {
 
@@ -29,9 +28,7 @@ class SequentialFile;
 class Slice;
 class WritableFile;
 class ConcurrentWritableFile;
-#if LEARN
 class FileMetaData;
-#endif
 
 class Env {
  public:
@@ -161,15 +158,11 @@ class Env {
   // Sleep/delay the thread for the perscribed number of micro-seconds.
   virtual void SleepForMicroseconds(int micros) = 0;
 
-#if LEARN
 	virtual void PrepareLearning(uint64_t time_start, int level, FileMetaData* meta) {};
 	virtual void StopLearning() {};
 	virtual void SetPrepareDeleteOff() {};
-#endif
 
-#if MULTI_LEARNING
   int num_learning_jobs = 4;
-#endif
  private:
   // No copying allowed
   Env(const Env&);

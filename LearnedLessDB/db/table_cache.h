@@ -45,7 +45,7 @@ class TableCache {
   Status Get(const ReadOptions& options,
              uint64_t file_number,
              uint64_t file_size,
-#if RETRAIN || TIME_R_LEVEL || AC_TEST2
+#if RETRAIN
 						 int level, FileMetaData* meta,
 #endif
              const Slice& k,

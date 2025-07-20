@@ -109,11 +109,7 @@ class MmapLimiter {
   MmapLimiter()
     : mu_(),
       allowed_() {
-#if LEARN
-    SetAllowed(sizeof(void*) >= 8 ? 1024*1024 : 0);			// Bourbon의 adgMod::fd_limit
-#else
-    SetAllowed(sizeof(void*) >= 8 ? 1000 : 0);
-#endif
+    SetAllowed(sizeof(void*) >= 8 ? 1024*1024 : 0);
   }
 
   // If another mmap slot is available, acquire it and return true.
@@ -841,12 +837,7 @@ class PosixEnv : public Env {
     usleep(micros);
   }
 
-#if LEARN && BLEARN
-#if MULTI_LEARNING
 	void PrepareLearn(int id) {
-#else
-	void PrepareLearn() {
-#endif
 		koo::Stats* instance = koo::Stats::GetInstance();
 		bool wait_for_time = false;
 		int64_t time_diff = 1000000;
@@ -892,41 +883,10 @@ class PosixEnv : public Env {
 				int level = top.second.first;
 				FileMetaData* meta = top.second.second;
 				koo::LearnedIndexData* model = koo::file_data->GetModel(meta->number);
-#if MULTI_LEARNING
 				learn_pq.pop();
-#endif
 				prepare_queue_mutex_.Unlock();
-#if TIME_W
-				std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
-#if SST_LIFESPAN
-				uint64_t file_number = meta->number;
-				koo::mutex_lifespan_.lock();
-				//if (koo::lifespans.find(file_number) != koo::lifespans.end()) {
-					koo::lifespans[file_number].W_end = NowMicros();
-				//} //else fprintf(stdout, "W_end %ld not exist\n", file_number);		// TODO 존재하지 않는게 있는데 왜지?
-				koo::mutex_lifespan_.unlock();
-#endif
-				uint64_t ret = koo::LearnedIndexData::FileLearn(new koo::MetaAndSelf{nullptr, 0, meta, model, level});
-#if SST_LIFESPAN
-				koo::mutex_lifespan_.lock();
-				//if (koo::lifespans.find(file_number) != koo::lifespans.end()) {
-					koo::lifespans[file_number].M_end = NowMicros();
-					if (ret) koo::lifespans[file_number].learned = true;
-				//}
-				koo::mutex_lifespan_.unlock();
-#endif
-#if TIME_W
-				if (ret) {
-					std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-					koo::learntime += nano.count();
-					koo::num_learntime++;
-				}
-#endif
+				koo::LearnedIndexData::FileLearn(new koo::MetaAndSelf{nullptr, 0, meta, model, level});
 				prepare_queue_mutex_.Lock();
-#if !MULTI_LEARNING
-				learn_pq.pop();
-#endif
 				if (prepare_delete) break;
 			}
 			if (prepare_delete) break;
@@ -943,9 +903,7 @@ class PosixEnv : public Env {
 			}
 		}
 		// Write learning queue info
-#if MULTI_LEARNING
 		if (!id) {
-#endif
 		fprintf(stdout, "Write learning_prepare size: %ld\n", learning_prepare.size());
 		fprintf(stdout, "Write learning_pq size: %ld\n", learn_pq.size());
 		if (koo::db->GetDBName() != "/mnt-koo/db_mix") {
@@ -979,9 +937,7 @@ class PosixEnv : public Env {
 		}
 		ofs.close();
 		}
-#if MULTI_LEARNING
 		}
-#endif
 		prepare_queue_mutex_.Unlock();
 		running_learning_threads--;
 		if (running_learning_threads == 0) {
@@ -992,24 +948,14 @@ class PosixEnv : public Env {
 		fflush(stdout);
 	}
 
-#if MULTI_LEARNING
 	static void PrepareLearnEntryPoint(PosixEnv* env, int id) {
 		env->PrepareLearn(id);
 	}
-#else
-	static void PrepareLearnEntryPoint(PosixEnv* env) {
-		env->PrepareLearn();
-	}
-#endif
 
 	void PrepareLearning(uint64_t time_start, int level, FileMetaData* meta) {
 		if (prepare_delete) return;
 		if (koo::MOD != 6 && koo::MOD != 7 && koo::MOD != 9) return;
-#if MULTI_LEARNING
 		prepare_queue_mutex_.Lock();
-#else
-		MutexLock guard(&prepare_queue_mutex_);
-#endif
 		if (prepare_delete) {
 			prepare_queue_mutex_.Unlock();
 			return;
@@ -1050,24 +996,15 @@ class PosixEnv : public Env {
 				}
 				ifs.close();
 			}
-#if MULTI_LEARNING
 			for (int i=0; i<num_learning_jobs; i++) {
 				std::thread background_thread(PosixEnv::PrepareLearnEntryPoint, this, i);
 				background_thread.detach();
 			}
-#else
-			std::thread background_thread(PosixEnv::PrepareLearnEntryPoint, this);
-			background_thread.detach();
-#endif
 		}
 
 		learning_prepare.emplace(std::make_pair(time_start, std::make_pair(level, meta)));
-#if MULTI_LEARNING
 		preparing_queue_cv_.SignalAll();
 		prepare_queue_mutex_.Unlock();
-#else
-		if (learning_prepare.empty()) preparing_queue_cv_.SignalAll();
-#endif
 	}
 
 	void StopLearning() {
@@ -1087,12 +1024,9 @@ class PosixEnv : public Env {
 	void SetPrepareDeleteOff() {
 		prepare_delete = false;
 	}
-#endif
 
  private:
-#if LEARN
  friend class TableCache;
-#endif
 
   void PthreadCall(const char* label, int result) {
     if (result != 0) {
@@ -1122,7 +1056,6 @@ class PosixEnv : public Env {
   PosixLockTable locks_;
   MmapLimiter mmap_limit_;
 
-#if LEARN
 	typedef std::pair<uint64_t, std::pair<int, FileMetaData*>> LearnParam;		// <time_start, <level, meta>>
 	std::queue<LearnParam> learning_prepare;
 	bool preparing_thread_started;
@@ -1133,7 +1066,6 @@ class PosixEnv : public Env {
 	std::mutex stop_mutex;
 	std::condition_variable stop_cv;
 	std::priority_queue<std::pair<double, LearnParam>> learn_pq;
-#endif
 };
 
 PosixEnv::PosixEnv() : page_size_(getpagesize()),
@@ -1143,11 +1075,9 @@ PosixEnv::PosixEnv() : page_size_(getpagesize()),
                        started_bgthread_(false),
                        queue_(),
                        locks_(),
-#if LEARN
 											 preparing_thread_started(false),
 											 preparing_queue_cv_(&prepare_queue_mutex_),
 											 prepare_delete(false),
-#endif
                        mmap_limit_() {
   PthreadCall("mutex_init", pthread_mutex_init(&mu_, NULL));
   PthreadCall("cvar_init", pthread_cond_init(&bgsignal_, NULL));

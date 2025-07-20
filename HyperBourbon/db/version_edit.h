@@ -11,7 +11,6 @@
 #include "db/dbformat.h"
 #include "koo/learned_index.h"
 #include "koo/stats.h"
-#include "koo/koo.h"
 
 namespace leveldb {
 
@@ -102,9 +101,7 @@ class VersionEdit {
 
  private:
   friend class VersionSet;
-#if BLEARN
   friend class DBImpl;
-#endif
 
   typedef std::set< std::pair<int, uint64_t> > DeletedFileSet;
 

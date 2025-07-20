@@ -422,13 +422,6 @@ void DBImpl::DeleteObsoleteFiles() {
       if (!keep) {
         if (type == kTableFile) {
           table_cache_->Evict(number);
-#if SST_LIFESPAN
-					koo::mutex_lifespan_.lock();
-					//if (koo::lifespans.find(number) != koo::lifespans.end()) {
-						koo::lifespans[number].U_end = env_->NowMicros();
-					//}
-					koo::mutex_lifespan_.unlock();
-#endif
         }
         Log(options_.info_log, "Delete type=%d #%lld\n",
             int(type),
@@ -651,13 +644,6 @@ Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
   Status s;
   {
     mutex_.Unlock();
-#if SST_LIFESPAN
-		koo::mutex_lifespan_.lock();
-		if (koo::lifespans.find(meta.number) == koo::lifespans.end()) {
-			koo::lifespans.insert({meta.number, koo::FileLifespanData(0, env_->NowMicros())});
-		} else fprintf(stdout, "T_start %ld already exist\n", meta.number);
-		koo::mutex_lifespan_.unlock();
-#endif
     s = BuildTable(dbname_, env_, options_, table_cache_, iter, &meta);
     mutex_.Lock();
   }
@@ -685,10 +671,6 @@ Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
   stats.micros = env_->NowMicros() - start_micros;
   stats.bytes_written = meta.file_size;
   stats_[level].Add(stats);
-#if TIME_W
-	koo::learn_bytesize += stats.bytes_written;
-	koo::num_learn_bytesize++;
-#endif
   return s;
 }
 
@@ -743,11 +725,6 @@ void DBImpl::CompactMemTableThread() {
       edit.SetPrevLogNumber(0);
       edit.SetLogNumber(logfile_number_);  // Earlier logs no longer needed
       s = versions_->LogAndApply(&edit, &mutex_, &bg_log_cv_, &bg_log_occupied_);
-#if SST_LIFESPAN
-			koo::mutex_lifespan_.lock();
-			koo::lifespans[number].T_end = env_->NowMicros();
-			koo::mutex_lifespan_.unlock();
-#endif
     }
 
     pending_outputs_.erase(number);
@@ -767,11 +744,6 @@ void DBImpl::CompactMemTableThread() {
       RecordBackgroundError(s);
       continue;
     }
-#if AC_TEST
-		koo::num_files_flush++;
-		koo::num_files[0]++;
-		koo::file_size[0] += edit.new_files_[0].second.file_size;
-#endif
 
     if (!shutting_down_.Acquire_Load() && !s.ok()) {
       // Wait a little bit before retrying background compaction in
@@ -1050,14 +1022,6 @@ Status DBImpl::OpenCompactionOutputFile(CompactionState* compact) {
     compact->outputs.push_back(out);
     mutex_.Unlock();
   }
-#if SST_LIFESPAN
-	koo::mutex_lifespan_.lock();
-	if (koo::lifespans.find(file_number) == koo::lifespans.end()) {
-		koo::lifespans.insert({file_number, koo::FileLifespanData(
-				compact->compaction->level() + 1, env_->NowMicros())});
-	} else fprintf(stdout, "T_start %ld already exist\n", file_number);
-	koo::mutex_lifespan_.unlock();
-#endif
 
   // Make the output file
   std::string fname = TableFileName(dbname_, file_number);
@@ -1116,11 +1080,6 @@ Status DBImpl::FinishCompactionOutputFile(CompactionState* compact,
   }
   delete compact->outfile;
   compact->outfile = NULL;
-#if AC_TEST
-	koo::num_files_compaction++;
-	koo::num_files[compact->compaction->level()+1]++;
-	koo::file_size[compact->compaction->level()+1] += current_bytes;
-#endif
 
 	if (!compact->merge_model) {
 		int level = compact->compaction->level() + 1;
@@ -1180,9 +1139,6 @@ Status DBImpl::InstallCompactionResults(CompactionState* compact) {
 bool DBImpl::CheckIfModelMergingPossible(CompactionState* compact) {
 	Compaction* c_ = compact->compaction;
 	size_t num_input_files[2] = {c_->num_input_files(0), c_->num_input_files(1)};
-#if TIME_W
-	std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
 	// Check if input files are valid
 	for (int which=0; which<2; which++) {
 		for (int i=0; i<num_input_files[which]; i++) {
@@ -1209,28 +1165,17 @@ bool DBImpl::CheckIfModelMergingPossible(CompactionState* compact) {
 	compact->x_lasts_size = x_lasts.size();
 	std::sort(x_lasts.begin(), x_lasts.end());		// quick sort
 #endif
-#if TIME_W
-	std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-	koo::mergetime += nano.count();
-#endif
 
 	return true;
 }
 
 Status DBImpl::DoCompactionWorkWithModelMerging(CompactionState* compact) {
-#if 0&MODELCOMP_TEST
-	koo::num_cpu_cycles[compact->compaction->level()-1]++;
-	uint64_t start = koo::rdtsc_start();
-#endif
 #if MODEL_COMPACTION
   Iterator* input = versions_->MakeInputIterator(compact->compaction, true);
 #else
   Iterator* input = versions_->MakeInputIterator(compact->compaction);
 #endif
   input->SeekToFirst();
-#if 0&MODELCOMP_TEST
-	uint64_t tmp = koo::rdtsc_end() - start;
-#endif
   Status status;
   ParsedInternalKey ikey;
   ParsedInternalKey current_key;
@@ -1239,14 +1184,8 @@ Status DBImpl::DoCompactionWorkWithModelMerging(CompactionState* compact) {
   SequenceNumber last_sequence_for_key = kMaxSequenceNumber;
   size_t boundary_hint = 0;
 	uint32_t pass = 4;
-#if MODELCOMP_TEST
-	uint64_t total_num_key = 0;
-#endif
   for (; input->Valid() && !shutting_down_.Acquire_Load(); ) {
     Slice key = input->key();
-#if MODELCOMP_TEST
-		total_num_key++;
-#endif
     // Handle key/value, add to state, etc.
     bool drop = false;
     if (!ParseInternalKey(key, &ikey)) {
@@ -1359,20 +1298,8 @@ Status DBImpl::DoCompactionWorkWithModelMerging(CompactionState* compact) {
       }
     }
 
-#if 0&MODELCOMP_TEST
-		start = koo::rdtsc_start();
-#endif
     input->Next();
-#if 0&MODELCOMP_TEST
-		tmp += (koo::rdtsc_end() - start);
-#endif
   }
-#if MODELCOMP_TEST
-	koo::total_num_keys[compact->compaction->level()-1] += total_num_key;
-#endif
-#if 0&MODELCOMP_TEST
-	koo::total_cpu_cycles[compact->compaction->level()-1] += tmp;
-#endif
 
   if (status.ok() && shutting_down_.Acquire_Load()) {
     status = Status::IOError("Deleting DB during compaction");
@@ -1416,9 +1343,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
   // Release mutex while we're actually doing the compaction work
   mutex_.Unlock();
 
-#if TIME_W
-	std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
   Status status;
 	Compaction* c_ = compact->compaction;
   if (c_->level() && CheckIfModelMergingPossible(compact)) {		// Over level 1 compaction
@@ -1532,16 +1456,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 		delete input;
 	  input = NULL;
 	}
-#if TIME_W
-	int which = 0, level = 1;
-	if (status.ok()) {
-		std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-		which = compact->merge_model ? 1 : 0;
-		level = compact->compaction->level();
-		koo::compactiontime2[which][level] += nano.count();
-		koo::num_compactiontime2[which][level]++;
-	}
-#endif
 
   CompactionStats stats;
   stats.micros = env_->NowMicros() - start_micros - imm_micros;
@@ -1553,27 +1467,9 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
   for (size_t i = 0; i < compact->outputs.size(); i++) {
     stats.bytes_written += compact->outputs[i].file_size;
   }
-#if TIME_W
-	if (status.ok()) {
-		koo::num_outputs[which][level] += compact->outputs.size();
-		koo::num_inputs[which][level] += compact->compaction->num_input_files(0) + compact->compaction->num_input_files(1);
-		koo::size_inputs[which][level] += stats.bytes_read;
-		koo::size_outputs[which][level] += stats.bytes_written;
-	}
-#endif
 
 	if (compact->merge_model && status.ok()) {
-#if TIME_W
-		koo::merge_bytesize += stats.bytes_written;
-		koo::num_merge_bytesize += compact->outputs.size();
-		std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
 		for (auto& output : compact->outputs) {
-#if SST_LIFESPAN
-			koo::mutex_lifespan_.lock();
-			koo::lifespans[output.number].W_end = env_->NowMicros();
-			koo::mutex_lifespan_.unlock();
-#endif
 			koo::MergeModel* merge = output.merge;
 			merge->file_number = output.number;
 			merge->level = c_->level() + 1;
@@ -1582,11 +1478,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 
 			// Merge
 			if (!merge->Merge()) {		// Merging failed
-#if SST_LIFESPAN
-				koo::mutex_lifespan_.lock();
-				koo::lifespans[output.number].M_end = env_->NowMicros();
-				koo::mutex_lifespan_.unlock();
-#endif
 			} else {									// Merging succeed
 				// Insert merged new model into koo::file_data
 				koo::LearnedIndexData* new_model = koo::file_data->GetModel(output.number);
@@ -1598,33 +1489,9 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 				new_model->level = c_->level() + 1;
 				new_model->size = output.merge->num_entries;
 				new_model->SetMergedModel(merge->segs_output);
-#if SST_LIFESPAN
-				koo::mutex_lifespan_.lock();
-				koo::lifespans[output.number].M_end = env_->NowMicros();
-				koo::lifespans[output.number].learned = true;
-				koo::lifespans[output.number].merged = true;
-				koo::mutex_lifespan_.unlock();
-#endif
-#if AC_TEST
-				koo::num_merged++;
-#endif
-#if TIME_W
-				koo::merge_size += merge->seg_infos.size();
-				koo::num_merge_size++;
-#endif
-#if MODEL_BREAKDOWN
-				koo::mm_num[c_->level()+1]++;
-				koo::mm_keys[c_->level()+1] += output.merge->num_entries;
-				koo::mm_segs[c_->level()+1] += new_model->string_segments.size() - 1;
-#endif
 			}
 			delete merge;
 		}
-#if TIME_W
-		std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-		koo::mergetime += nano.count();
-		koo::num_mergetime++;
-#endif
 	}
 
   mutex_.Lock();
@@ -1632,13 +1499,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 
   if (status.ok()) {
     status = InstallCompactionResults(compact);
-#if SST_LIFESPAN
-		koo::mutex_lifespan_.lock();
-		for (auto& output : compact->outputs) {
-			koo::lifespans[output.number].T_end = env_->NowMicros();
-		}
-		koo::mutex_lifespan_.unlock();
-#endif
   }
   if (!status.ok()) {
     RecordBackgroundError(status);

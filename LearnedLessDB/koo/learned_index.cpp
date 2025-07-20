@@ -148,10 +148,6 @@ bool LearnedIndexData::Learn() {
 	max_key = string_keys.back();
   size = string_keys.size();
 #endif
-#if TIME_W
-	koo::learn_size += size;
-	koo::num_learn_size++;
-#endif
 
   // actual training
 #if MODEL_COMPACTION
@@ -172,9 +168,6 @@ bool LearnedIndexData::Learn() {
 		error = koo::learn_model_error;
 		is_retrained_ = true;
 		merged = false;
-#if AC_TEST
-		koo::num_retrained++;
-#endif
 	} else {
 		string_segments = std::move(segs);
 	}
@@ -218,35 +211,14 @@ uint64_t LearnedIndexData::FileLearn(void* arg) {
 #endif
 
 		if (filldata) {
-#if TIME_W
-			std::chrono::system_clock::time_point StartTime;
-			if (self->level == 0) StartTime = std::chrono::system_clock::now();
-#endif
 #if RETRAIN
 			if (self->Learn()) {
 				entered = true;
-#if TIME_W
-				if (self->level == 0) {
-					std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-					koo::learntime_l0 += nano.count();
-					koo::num_learntime_l0++;
-				}
-				koo::learn_bytesize += mas->meta->file_size;
-				koo::num_learn_bytesize++;
-#endif
 			} //else fprintf(stderr, "\nLearning stopped\n\n");
 #else
 		  if (self->Learn()) {
 				entered = true;
 			}
-#endif
-#if AC_TEST
-			koo::num_learned++;
-#endif
-#if MODEL_BREAKDOWN
-			koo::lm_num[self->level]++;
-			koo::lm_keys[self->level] += self->size;
-			koo::lm_segs[self->level] += self->string_segments.size() - 1;
 #endif
 		}
   }
@@ -329,11 +301,6 @@ void LearnedIndexData::WriteModel(const string& filename) {
 #endif
 
 	ofs.close();
-
-#if MODEL_BREAKDOWN
-	if (merged) koo::num_mm[level]++;
-	else koo::num_lm[level]++;
-#endif
 }
 
 void LearnedIndexData::ReadModel(const string& filename, Version* v, FileMetaData* meta) {

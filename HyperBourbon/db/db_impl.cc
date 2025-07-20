@@ -41,11 +41,10 @@
 
 namespace leveldb {
 
-const unsigned kStraightReads = 10;		// TODO version이 더 자주 업데이트되면서 straight_reads_가 안쌓임. 어떻게 해결?
+const unsigned kStraightReads = 10;
 
 const int kNumNonTableCacheFiles = 10;
 
-#if REMOVE_MUTEX
 class DBImpl::CurrentForRead {
 public:
 	CurrentForRead(DBImpl* parent) : parent_(parent) {
@@ -72,7 +71,6 @@ private:
 	MemTable* mem_;
 	MemTable* imm_;
 };
-#endif
 
 // Information kept for every waiting writer
 struct DBImpl::Writer {
@@ -182,9 +180,7 @@ Options SanitizeOptions(const std::string& dbname,
     // Open a log file in the same directory as the db
     src.env->CreateDir(dbname);  // In case it does not exist
     src.env->RenameFile(InfoLogFileName(dbname), OldInfoLogFileName(dbname));
-#if LEARN
 		src.env->CreateDir(dbname + koo::model_dbname);
-#endif
     Status s = src.env->NewLogger(InfoLogFileName(dbname), &result.info_log);
     if (!s.ok()) {
       // No place suitable for logging
@@ -288,12 +284,8 @@ DBImpl::~DBImpl() {
     env_->UnlockFile(db_lock_);
   }
 
-#if LEARN
-	koo::Report();
-#endif
-#if REMOVE_MUTEX
+	//koo::Report();
 	current_for_read_.reset();
-#endif
   delete versions_;
   if (mem_ != NULL) mem_->Unref();
   if (imm_ != NULL) imm_->Unref();
@@ -307,16 +299,12 @@ DBImpl::~DBImpl() {
   if (owns_cache_) {
     delete options_.block_cache;
   }
-#if LEARN
 	delete koo::file_data;
-#endif
-#if BLEARN
 	delete koo::learn_cb_model;
 #if BOURBON_PLUS
 	delete koo::file_stats_data;
 #else
 	koo::file_stats.clear();
-#endif
 #endif
 	delete vlog;
 }
@@ -421,7 +409,7 @@ void DBImpl::DeleteObsoleteFiles() {
       if (!keep) {
         if (type == kTableFile) {
           table_cache_->Evict(number);
-#if BLEARN && !LEARNING_ALL && !BOURBON_OFFLINE
+#if !LEARNING_ALL && !BOURBON_OFFLINE
 					if (!koo::fresh_write) {
 #if BOURBON_PLUS
 						koo::FileStats* file_stat = koo::file_stats_data->GetFileStats(number);
@@ -443,13 +431,6 @@ void DBImpl::DeleteObsoleteFiles() {
 						koo::file_stats_mutex.Unlock();
 #endif
 					}
-#endif
-#if SST_LIFESPAN
-					koo::mutex_lifespan_.lock();
-					//if (koo::lifespans.find(number) != koo::lifespans.end()) {
-						koo::lifespans[number].U_end = env_->NowMicros();
-					//} //else fprintf(stderr, "U_end %ld not exist!!!!\n", number);		// TODO 존재하지 않는게 있는데 왜지?
-					koo::mutex_lifespan_.unlock();
 #endif
         }
         Log(options_.info_log, "Delete type=%d #%lld\n",
@@ -675,13 +656,6 @@ Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
   Status s;
   {
     mutex_.Unlock();
-#if SST_LIFESPAN
-		koo::mutex_lifespan_.lock();
-		if (koo::lifespans.find(meta.number) == koo::lifespans.end()) {
-			koo::lifespans.insert({meta.number, koo::FileLifespanData(0, env_->NowMicros())});
-		} else fprintf(stdout, "T_start %ld exist\n", meta.number);
-		koo::mutex_lifespan_.unlock();
-#endif
     s = BuildTable(dbname_, env_, options_, table_cache_, iter, &meta);
     mutex_.Lock();
   }
@@ -703,7 +677,7 @@ Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
     }
     edit->AddFile(level, meta.number, meta.file_size,
                   meta.smallest, meta.largest);
-#if BLEARN && !LEARNING_ALL && !BOURBON_OFFLINE
+#if !LEARNING_ALL && !BOURBON_OFFLINE
 		if (!koo::fresh_write) {
 #if BOURBON_PLUS
 			koo::file_stats_data->InsertFileStats(meta.number, level, meta.file_size);
@@ -758,7 +732,7 @@ void DBImpl::CompactMemTableThread() {
     }
 		bg_mem_job_ = true;
 
-#if BLEARN && !BOURBON_OFFLINE
+#if !BOURBON_OFFLINE
 		koo::Stats* instance = koo::Stats::GetInstance();
 		uint64_t time_started = instance->StartTimer(16);
 #endif
@@ -780,13 +754,6 @@ void DBImpl::CompactMemTableThread() {
       edit.SetPrevLogNumber(0);
       edit.SetLogNumber(logfile_number_);  // Earlier logs no longer needed
       s = versions_->LogAndApply(&edit, &mutex_, &bg_log_cv_, &bg_log_occupied_);
-#if SST_LIFESPAN
-			koo::mutex_lifespan_.lock();
-			//if (koo::lifespans.find(number) != koo::lifespans.end()) {
-				koo::lifespans[number].T_end = env_->NowMicros();
-			//} else fprintf(stdout, "T_end %ld not exist!!!\n", number);		// TODO 존재하지 않는게 있는데 왜지?
-			koo::mutex_lifespan_.unlock();
-#endif
     }
 
     pending_outputs_.erase(number);
@@ -796,27 +763,21 @@ void DBImpl::CompactMemTableThread() {
       imm_->Unref();
       imm_ = NULL;
       has_imm_.Release_Store(NULL);
-#if REMOVE_MUTEX
 			mutex_.Unlock();
 			current_for_read_.reset(new CurrentForRead(this));
 			mutex_.Lock();
-#endif
       bg_fg_cv_.SignalAll();
       bg_compaction_cv_.Signal();
       DeleteObsoleteFiles();
     } else {
       RecordBackgroundError(s);
-#if BLEARN && !BOURBON_OFFLINE
+#if !BOURBON_OFFLINE
 			auto time = instance->PauseTimer(time_started, 16);
 #endif
       continue;
     }
 
-#if AC_TEST
-		koo::num_files_flush++;
-#endif
-
-#if BLEARN && !BOURBON_OFFLINE
+#if !BOURBON_OFFLINE
 		auto time = instance->PauseTimer(time_started, 16, true);
 		int level = edit.new_files_[0].first;
 
@@ -967,7 +928,7 @@ void DBImpl::RecordBackgroundError(const Status& s) {
 
 Status DBImpl::BackgroundCompaction(unsigned level) {
   mutex_.AssertHeld();
-#if BLEARN && !BOURBON_OFFLINE
+#if !BOURBON_OFFLINE
 	koo::Stats* instance = koo::Stats::GetInstance();
 	uint64_t time_started = instance->StartTimer(7);
 #endif
@@ -1007,14 +968,12 @@ Status DBImpl::BackgroundCompaction(unsigned level) {
                          f->smallest, f->largest);
     }
     status = versions_->LogAndApply(c->edit(), &mutex_, &bg_log_cv_, &bg_log_occupied_);
-#if REMOVE_MUTEX
 		mutex_.Unlock();
 		current_for_read_.reset(new CurrentForRead(this));
 		mutex_.Lock();
-#endif
 		c->MarkFilesBeingCompacted(false);
 		versions_->UnregisterCompaction(c);
-#if BLEARN && !LEARNING_ALL && !BOURBON_OFFLINE
+#if !LEARNING_ALL && !BOURBON_OFFLINE
 		if (!koo::fresh_write) {
 #if BOURBON_PLUS
 	    for (size_t i = 0; i < c->num_input_files(0); ++i) {
@@ -1054,19 +1013,7 @@ Status DBImpl::BackgroundCompaction(unsigned level) {
     }
   } else {
     CompactionState* compact = new CompactionState(c);
-#if TIME_W || AC_TEST
-		std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
     status = DoCompactionWork(compact);
-#if TIME_W || AC_TEST
-		std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-#if TIME_W
-		koo::compactiontime[c->level()] += nano.count();
-		koo::num_compactiontime[c->level()]++;
-		//koo::compactiontime += nano.count();
-		//koo::num_compactiontime++;
-#endif
-#endif
     if (!status.ok()) {
       RecordBackgroundError(status);
     }
@@ -1078,7 +1025,7 @@ Status DBImpl::BackgroundCompaction(unsigned level) {
   }
 	bg_compaction_cv_.SignalAll();
 
-#if BLEARN && !BOURBON_OFFLINE
+#if !BOURBON_OFFLINE
 	instance->PauseTimer(time_started, 7);
 #endif
 
@@ -1143,14 +1090,6 @@ Status DBImpl::OpenCompactionOutputFile(CompactionState* compact) {
     compact->outputs.push_back(out);
     mutex_.Unlock();
   }
-#if SST_LIFESPAN
-	koo::mutex_lifespan_.lock();
-	if (koo::lifespans.find(file_number) == koo::lifespans.end()) {
-		koo::lifespans.insert({file_number, koo::FileLifespanData(
-			compact->compaction->level() + 1, env_->NowMicros())});
-	} else fprintf(stdout, "T_start %ld exist\n", file_number);
-	koo::mutex_lifespan_.unlock();
-#endif
 
   // Make the output file
   std::string fname = TableFileName(dbname_, file_number);
@@ -1193,11 +1132,8 @@ Status DBImpl::FinishCompactionOutputFile(CompactionState* compact,
   }
   delete compact->outfile;
   compact->outfile = NULL;
-#if AC_TEST
-	koo::num_files_compaction++;
-#endif
 
-#if BLEARN && !LEARNING_ALL && !BOURBON_OFFLINE
+#if !LEARNING_ALL && !BOURBON_OFFLINE
 	if (!koo::fresh_write) {
 #if BOURBON_PLUS
 		koo::file_stats_data->InsertFileStats(output_number, 
@@ -1210,7 +1146,7 @@ Status DBImpl::FinishCompactionOutputFile(CompactionState* compact,
 #endif
 	}
 #endif
-#if LEARN && !BOURBON_OFFLINE
+#if !BOURBON_OFFLINE
 	int level = compact->compaction->level() + 1;
 	CompactionState::Output* output = compact->current_output();
 
@@ -1261,15 +1197,11 @@ Status DBImpl::InstallCompactionResults(CompactionState* compact) {
         level + 1,
         out.number, out.file_size, out.smallest, out.largest);
   }
-#if REMOVE_MUTEX
   Status s = versions_->LogAndApply(compact->compaction->edit(), &mutex_, &bg_log_cv_, &bg_log_occupied_);
 	mutex_.Unlock();
 	current_for_read_.reset(new CurrentForRead(this));
 	mutex_.Lock();
 	return s;
-#else
-  return versions_->LogAndApply(compact->compaction->edit(), &mutex_, &bg_log_cv_, &bg_log_occupied_);
-#endif
 }
 
 Status DBImpl::DoCompactionWork(CompactionState* compact) {
@@ -1294,39 +1226,8 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
   // Release mutex while we're actually doing the compaction work
   mutex_.Unlock();
 
-#if MODEL_ACCURACY
-  for (size_t l=0; l<2; l++) {
-		for (size_t i=0; i<compact->compaction->num_input_files(l); ++i) {
-			FileMetaData* f = compact->compaction->input(l, i);
-			koo::LearnedIndexData* model = koo::file_data->GetModelForLookup(f->number);
-			//std::cout << "fn: " << f->number << ", level: " << c->level()+l << std::endl;
-			if (model != nullptr && model->Learned()) {
-				std::shared_ptr<CurrentForRead> current_for_read = current_for_read_;
-			  Version* current = current_for_read->v();
-				//std::cout << "\tLearned\n";
-				current->TestModelAccuracy(f->number, f->file_size);
-			}
-		}
-	}
-#endif
-
-#if TIME_W
-	std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
-#if MODELCOMP_TEST
-	uint64_t start, tmp2;
-	if (compact->compaction->level()) {
-		koo::num_cpu_cycles[compact->compaction->level()-1]++;
-		start = koo::rdtsc_start();
-	}
-#endif
   Iterator* input = versions_->MakeInputIterator(compact->compaction);
   input->SeekToFirst();
-#if MODELCOMP_TEST
-	if (compact->compaction->level()) {
-		tmp2 = koo::rdtsc_end() - start;
-	}
-#endif
   Status status;
   ParsedInternalKey ikey;
   ParsedInternalKey current_key;
@@ -1334,14 +1235,8 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
   bool has_current_key = false;
   SequenceNumber last_sequence_for_key = kMaxSequenceNumber;
   size_t boundary_hint = 0;
-#if 0&MODELCOMP_TEST
-	uint64_t total_num_key = 0;
-#endif
   for (; input->Valid() && !shutting_down_.Acquire_Load(); ) {
     Slice key = input->key();
-#if 0&MODELCOMP_TEST
-		total_num_key++;
-#endif
     // Handle key/value, add to state, etc.
     bool drop = false;
     if (!ParseInternalKey(key, &ikey)) {
@@ -1425,27 +1320,8 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
       }
     }
 
-#if MODELCOMP_TEST
-		if (compact->compaction->level()) {
-			start = koo::rdtsc_start();
-		}
-#endif
     input->Next();
-#if MODELCOMP_TEST
-		if (compact->compaction->level()) {
-			tmp2 += (koo::rdtsc_end() - start);
-		}
-#endif
   }
-#if 0&MODELCOMP_TEST
-		if (compact->compaction->level())
-			koo::total_num_keys[compact->compaction->level()-1] += total_num_key;
-#endif
-#if MODELCOMP_TEST
-	if (compact->compaction->level()) {
-		koo::total_cpu_cycles[compact->compaction->level()-1] += tmp2;
-	}
-#endif
 
   if (status.ok() && shutting_down_.Acquire_Load()) {
 		//fprintf(stderr, "hihihi2\n");
@@ -1459,12 +1335,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
   }
   delete input;
   input = NULL;
-#if TIME_W
-	std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-	int level = compact->compaction->level();
-	koo::compactiontime2[level] += nano.count();
-	koo::num_compactiontime2[level]++;
-#endif
 
   CompactionStats stats;
   stats.micros = env_->NowMicros() - start_micros - imm_micros;
@@ -1476,55 +1346,16 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
   for (size_t i = 0; i < compact->outputs.size(); i++) {
     stats.bytes_written += compact->outputs[i].file_size;
   }
-#if TIME_W
-	koo::num_outputs[level] += compact->outputs.size();
-	koo::num_inputs[level] += compact->compaction->num_input_files(0) + compact->compaction->num_input_files(1);
-	koo::size_inputs[level] += stats.bytes_read;
-	koo::size_outputs[level] += stats.bytes_written;
-#endif
-/*#if AC_TEST
-	if (koo::count_compaction_triggered_after_load) {
-		koo::num_outputs_compaction_triggered_after_load += compact->outputs.size();
-		koo::num_inputs_compaction_triggered_after_load += compact->compaction->num_input_files(0) + compact->compaction->num_input_files(1);
-		koo::size_outputs_compaction_triggered_after_load += stats.bytes_written;
-		koo::size_inputs_compaction_triggered_after_load += stats.bytes_read;
-	}
-#endif*/
 
   mutex_.Lock();
   stats_[compact->compaction->level() + 1].Add(stats);
 
   if (status.ok()) {
     status = InstallCompactionResults(compact);
-#if SST_LIFESPAN
-		koo::mutex_lifespan_.lock();
-		for (auto& output : compact->outputs) {
-			//if (koo::lifespans.find(output.number) != koo::lifespans.end()) {
-				koo::lifespans[output.number].T_end = env_->NowMicros();
-			//} else fprintf(stdout, "T_end %ld not exist\n", output.number);
-		}
-		koo::mutex_lifespan_.unlock();
-#endif
   }
   if (!status.ok()) {
-		//fprintf(stderr, "hihihi3\n");
     RecordBackgroundError(status);
   }
-/*#if LEARN && !BOURBON_OFFLINE
-	if (status.ok()) {
-		int level = compact->compaction->level() + 1;
-		koo::Stats* instance = koo::Stats::GetInstance();
-		for (auto& output : compact->outputs) {
-			uint32_t dummy;
-			FileMetaData* meta = new FileMetaData();
-			meta->number = output.number;
-			meta->file_size = output.file_size;
-			meta->smallest = output.smallest;
-			meta->largest = output.largest;
-			env_->PrepareLearning((__rdtscp(&dummy) - instance->initial_time) / koo::reference_frequency, level, meta);
-		}
-	}
-#endif*/
   VersionSet::LevelSummaryStorage tmp;
   Log(options_.info_log,
       "compacted to: %s", versions_->LevelSummary(&tmp));
@@ -1601,9 +1432,6 @@ Status DBImpl::Get(const ReadOptions& options,
                    const Slice& key,
                    std::string* value) {
   Status s;
-#if !REMOVE_MUTEX
-  MutexLock l(&mutex_);
-#endif
   SequenceNumber snapshot;
   if (options.snapshot != NULL) {
     snapshot = reinterpret_cast<const SnapshotImpl*>(options.snapshot)->number_;
@@ -1611,28 +1439,16 @@ Status DBImpl::Get(const ReadOptions& options,
     snapshot = versions_->LastSequence();
   }
 
-#if REMOVE_MUTEX
 	std::shared_ptr<CurrentForRead> current_for_read = current_for_read_;
   MemTable* mem = current_for_read->mem();
   MemTable* imm = current_for_read->imm();
   Version* current = current_for_read->v();
-#else
-  MemTable* mem = mem_;
-  MemTable* imm = imm_;
-  Version* current = versions_->current();
-  mem->Ref();
-  if (imm != NULL) imm->Ref();
-  current->Ref();
-#endif
 
   bool have_stat_update = false;
   Version::GetStats stats;
 
   // Unlock while reading from files and memtables
   {
-#if !REMOVE_MUTEX
-    mutex_.Unlock();
-#endif
     // First look in the memtable, then in the immutable memtable (if any).
     LookupKey lkey(key, snapshot);
     if (mem->Get(lkey, value, &s)) {
@@ -1648,20 +1464,12 @@ Status DBImpl::Get(const ReadOptions& options,
 			uint32_t value_size = DecodeFixed32(value->c_str() + sizeof(uint64_t));
 			*value = std::move(koo::db->vlog->ReadRecord(value_address, value_size));
 		}
-#if !REMOVE_MUTEX
-    mutex_.Lock();
-#endif
   }
 
   if (have_stat_update && current->UpdateStats(stats)) {
     bg_compaction_cv_.Signal();
   }
   ++straight_reads_;
-#if !REMOVE_MUTEX
-  mem->Unref();
-  if (imm != NULL) imm->Unref();
-  current->Unref();
-#endif
   return s;
 }
 
@@ -1889,7 +1697,6 @@ Status DBImpl::Write(const WriteOptions& options, WriteBatch* updates) {
 Status DBImpl::SequenceWriteBegin(Writer* w, WriteBatch* updates) {
   Status s;
 
-#if REMOVE_MUTEX2
   if (mem_->ApproximateMemoryUsage() <= (double)options_.write_buffer_size * 0.9) {
     straight_reads_ = 0;
     w->micros_ = versions_->NumLevelFiles(0);
@@ -1900,7 +1707,6 @@ Status DBImpl::SequenceWriteBegin(Writer* w, WriteBatch* updates) {
       mem_->Ref();
     }
 	} else {
-#endif
 		mutex_.Lock();
     straight_reads_ = 0;
     bool force = updates == NULL;
@@ -1943,11 +1749,9 @@ Status DBImpl::SequenceWriteBegin(Writer* w, WriteBatch* updates) {
         mem_->Ref();
         force = false;   // Do not force another compaction if have room
         enqueue_mem = true;
-#if REMOVE_MUTEX
 				mutex_.Unlock();
 				current_for_read_.reset(new CurrentForRead(this));
 				mutex_.Lock();
-#endif
         break;
       }
     }
@@ -1967,9 +1771,7 @@ Status DBImpl::SequenceWriteBegin(Writer* w, WriteBatch* updates) {
     }
 
     mutex_.Unlock();
-#if REMOVE_MUTEX2
   }
-#endif
 
   if (s.ok()) {
     uint64_t diff = updates ? WriteBatchInternal::Count(updates) : 0;
@@ -1977,24 +1779,7 @@ Status DBImpl::SequenceWriteBegin(Writer* w, WriteBatch* updates) {
     w->linked_ = true;
     w->next_ = NULL;
 
-#if REMOVE_MUTEX2
     ticket = __sync_add_and_fetch(&writers_upper_, 1 + diff);
-#else
-    writers_mutex_.Lock();
-    if (writers_tail_) {
-      writers_tail_->next_ = w;
-      w->prev_ = writers_tail_;
-    }
-    writers_tail_ = w;
-    ticket = __sync_add_and_fetch(&writers_upper_, 1 + diff);
-    while (w->block_if_backup_in_progress_ &&
-           backup_in_progress_.Acquire_Load()) {
-      w->wake_me_when_head_ = true;
-      w->cv_.Wait();
-      w->wake_me_when_head_ = false;
-    }
-    writers_mutex_.Unlock();
-#endif
     w->start_sequence_ = ticket - diff;
     w->end_sequence_ = ticket;
   }
@@ -2011,30 +1796,6 @@ void DBImpl::SequenceWriteEnd(Writer* w) {
   versions_->SetLastSequence(w->end_sequence_);
   mutex_.Unlock();
 
-#if !REMOVE_MUTEX2
-  writers_mutex_.Lock();
-  if (w->prev_) {
-    w->prev_->next_ = w->next_;
-    if (w->has_imm_) {
-      w->prev_->has_imm_ = true;
-      w->has_imm_ = false;
-    }
-  }
-  if (w->next_) {
-    w->next_->prev_ = w->prev_;
-    // if we're the head and we're setting someone else to be the head who wants
-    // to be notified when they become the head, signal them.
-    if (w->next_->wake_me_when_head_ && !w->prev_) {
-      w->next_->cv_.Signal();
-    }
-  }
-  if (writers_tail_ == w) {
-    assert(!w->next_);
-    writers_tail_ = NULL;
-  }
-  writers_mutex_.Unlock();
-#endif
-
   if (w->has_imm_ && !w->prev_) {
     mutex_.Lock();
     has_imm_.Release_Store(imm_);
@@ -2049,43 +1810,6 @@ void DBImpl::SequenceWriteEnd(Writer* w) {
 }
 
 void DBImpl::WaitOutWriters() {
-#if !REMOVE_MUTEX2
-  Writer w(&writers_mutex_);
-  writers_mutex_.Lock();
-  if (writers_tail_) {
-    writers_tail_->next_ = &w;
-    w.prev_ = writers_tail_;
-  }
-  writers_tail_ = &w;
-  w.linked_ = true;
-  w.next_ = NULL;
-  while (w.prev_) {
-    w.wake_me_when_head_ = true;
-    w.cv_.Wait();
-  }
-  assert(!w.prev_);
-  if (w.next_) {
-    w.next_->prev_ = NULL;
-    // if we're the head and we're setting someone else to be the head who wants
-    // to be notified when they become the head, signal them.
-    if (w.next_->wake_me_when_head_) {
-      w.next_->cv_.Signal();
-    }
-  }
-  if (writers_tail_ == &w) {
-    assert(!w.next_);
-    writers_tail_ = NULL;
-  }
-  writers_mutex_.Unlock();
-
-  if (w.has_imm_) {
-    mutex_.Lock();
-    has_imm_.Release_Store(imm_);
-    w.has_imm_ = false;
-    bg_memtable_cv_.Signal();
-    mutex_.Unlock();
-  }
-#endif
 }
 
 bool DBImpl::GetProperty(const Slice& property, std::string* value) {
@@ -2326,15 +2050,11 @@ Status DB::Open(const Options& options, const std::string& dbname,
                 DB** dbptr) {
   *dbptr = NULL;
 	koo::env = options.env;
-#if LEARN
 	koo::file_data = new koo::FileLearnedIndexData();
 	koo::initial_time = __rdtsc();
-#endif
-#if BLEARN
 	koo::learn_cb_model = new CBModel_Learn();
 	koo::Stats* instance = koo::Stats::GetInstance();
 	instance->ResetAll();
-#endif
 #if BOURBON_PLUS
 	koo::file_stats_data = new koo::FileStatsData();
 #endif
@@ -2355,19 +2075,14 @@ Status DB::Open(const Options& options, const std::string& dbname,
       impl->logfile_number_ = new_log_number;
       impl->log_.reset(new log::Writer(lfile));
       s = impl->versions_->LogAndApply(&edit, &impl->mutex_, &impl->bg_log_cv_, &impl->bg_log_occupied_);
-#if REMOVE_MUTEX
 			impl->mutex_.Unlock();
 			impl->current_for_read_.reset(new DBImpl::CurrentForRead(impl));
 			impl->mutex_.Lock();
-#endif
     }
     if (s.ok()) {
       impl->DeleteObsoleteFiles();
-#if LEARN
-#if BOURBON_OFFLINE
-#else
+#if !BOURBON_OFFLINE
 			impl->versions_->current()->ReadModel();
-#endif
 #endif
       impl->bg_compaction_cv_.Signal();
       impl->bg_memtable_cv_.Signal();
@@ -2426,7 +2141,6 @@ Status DestroyDB(const std::string& dbname, const Options& options) {
   return result;
 }
 
-#if LEARN
 Version* DBImpl::GetCurrentVersion() {
 	MutexLock l(&mutex_);
 	Version* ver = versions_->current();
@@ -2438,8 +2152,6 @@ void DBImpl::ReturnCurrentVersion(Version* version) {
 	MutexLock l(&mutex_);
 	version->Unref();
 }
-
-#endif
 
 
 }  // namespace leveldb

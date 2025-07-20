@@ -24,7 +24,6 @@ using leveldb::FileMetaData;
 
 
 namespace koo {
-#if LEARN
     class LearnedIndexData;
 
     // An array collecting the total number of keys in a level in or before each file. One per level.
@@ -78,15 +77,11 @@ namespace koo {
         // some params for level triggering policy, deprecated
         int allowed_seek;
         int current_seek;
-#if LEARN
 				bool deleted_not_atomic;
 				std::atomic<bool> deleted;
 				port::Mutex mutex_delete_;
-#endif
     public:
-#if LEARN
 				uint64_t file_number;
-#endif
         // is the data of this model filled (ready for learning)
         bool filled;
         // is this a level model
@@ -121,24 +116,17 @@ namespace koo {
 
 
 
-#if LEARN
-        explicit LearnedIndexData(int allowed_seek, bool level_model) : error(level_model?level_model_error:LEARN_MODEL_ERROR), learned(false), aborted(false), learning(false),
+        explicit LearnedIndexData(int allowed_seek, bool level_model) : error(level_model?level_model_error:koo::learn_model_error), learned(false), aborted(false), learning(false),
 						deleted(false), deleted_not_atomic(false),
             learned_not_atomic(false), allowed_seek(allowed_seek), current_seek(0), filled(false), is_level(level_model), level(0), served(0), cost(0) {};
 
-        explicit LearnedIndexData(int allowed_seek, bool level_model, uint64_t number) : error(level_model?level_model_error:LEARN_MODEL_ERROR), file_number(number), learned(false), aborted(false), learning(false),
+        explicit LearnedIndexData(int allowed_seek, bool level_model, uint64_t number) : error(level_model?level_model_error:koo::learn_model_error), file_number(number), learned(false), aborted(false), learning(false),
 						deleted(false), deleted_not_atomic(false),
             learned_not_atomic(false), allowed_seek(allowed_seek), current_seek(0), filled(false), is_level(level_model), level(0), served(0), cost(0) {};
-#else
-        explicit LearnedIndexData(int allowed_seek, bool level_model) : error(level_model?level_model_error:LEARN_MODEL_ERROR), learned(false), aborted(false), learning(false),
-            learned_not_atomic(false), allowed_seek(allowed_seek), current_seek(0), filled(false), is_level(level_model), level(0), served(0), cost(0) {};
-#endif
         LearnedIndexData(const LearnedIndexData& other) = delete;
-//#if BOURBON_PLUS		// 없으면 memory kill
 				~LearnedIndexData();
 				bool Deleted();
 				void MarkDelete();
-//#endif
 
         // Inference function. Return the predicted interval.
         // If the key is in the training set, the output interval guarantees to include the key
@@ -191,12 +179,10 @@ namespace koo {
         std::pair<uint64_t, uint64_t> GetPosition(const Slice& key, int file_num);
         AccumulatedNumEntriesArray* GetAccumulatedArray(int file_num);
         LearnedIndexData* GetModel(int number);
-#if BOURBON_PLUS && REMOVE_MUTEX
+#if BOURBON_PLUS
         LearnedIndexData* GetModelForLookup(int number);
 #endif
-//#if BOURBON_PLUS
 				void DeleteModel(int number);
-//#endif
         void Report();
         ~FileLearnedIndexData();
     };
@@ -209,7 +195,6 @@ namespace koo {
 
     };
 
-#endif // LEARN
 
 }
 

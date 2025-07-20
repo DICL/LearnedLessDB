@@ -20,13 +20,8 @@ class Iterator;
 // key is present in K child iterators, it will be yielded K times.
 //
 // REQUIRES: n >= 0
-#if MODELCOMP_TEST 
-extern Iterator* NewMergingIterator(
-    const Comparator* comparator, Iterator** children, int n, int level=0);
-#else
 extern Iterator* NewMergingIterator(
     const Comparator* comparator, Iterator** children, int n);
-#endif
 
 }  // namespace leveldb
 

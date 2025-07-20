@@ -14,11 +14,8 @@
 #include "hyperleveldb/table.h"
 #include "port/port.h"
 #include "version_edit.h"
-#include "koo/koo.h"
 
-#if LEARN
 namespace koo { class LearnedIndexData; }
-#endif
 
 namespace leveldb {
 
@@ -43,38 +40,22 @@ class TableCache {
 
   // If a seek to internal key "k" in specified file finds an entry,
   // call (*handle_result)(arg, found_key, found_value).
-#if BLEARN
   Status Get(const ReadOptions& options, uint64_t file_number,
              uint64_t file_size, const Slice& k, void* arg,
              void (*handle_result)(void*, const Slice&, const Slice&), int level,
              FileMetaData* meta = nullptr, uint64_t lower = 0, uint64_t upper = 0,
              bool learned = false, Version* version = nullptr,
              koo::LearnedIndexData** model = nullptr, bool* file_learned = nullptr);
-#else
-  Status Get(const ReadOptions& options,
-             uint64_t file_number,
-             uint64_t file_size,
-             const Slice& k,
-             void* arg,
-             void (*handle_result)(void*, const Slice&, const Slice&));
-#endif
 
   // Evict any entry for the specified file number
   void Evict(uint64_t file_number);
 
-#if LEARN
 	bool FillData(const ReadOptions& options, FileMetaData* meta, koo::LearnedIndexData* data);
-#if MODEL_ACCURACY
-	void TestModelAccuracy(uint64_t& file_number, uint64_t& file_size);
-#endif
-#endif
-#if BLEARN
 	void LevelRead(const ReadOptions& options, uint64_t file_number,
 								uint64_t file_size, const Slice& k, void* arg,
 								void (*handle_result)(void*, const Slice&, const Slice&), int level,
 								FileMetaData* meta = nullptr, uint64_t lower = 0, uint64_t upper = 0,
 								bool learned = false, Version* version = nullptr);
-#endif
 
  private:
   TableCache(const TableCache&);

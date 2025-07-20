@@ -9,7 +9,6 @@
 #include "db/version_edit.h"
 #include "table/format.h"
 #include "hyperleveldb/iterator.h"
-#include "koo/koo.h"
 
 
 namespace leveldb {
@@ -21,9 +20,7 @@ struct Options;
 class RandomAccessFile;
 struct ReadOptions;
 class TableCache;
-#if LEARN
 class FilterBlockReader;
-#endif
 
 // A Table is a sorted map from strings to strings.  Tables are
 // immutable and persistent.  A Table may be safely accessed from
@@ -64,7 +61,6 @@ class Table {
 
  private:
   friend class TableCache;
-#if LEARN
 	struct Rep {
 	  Rep()
     : options(),
@@ -92,9 +88,6 @@ class Table {
 	  Rep(const Rep&);
 		Rep& operator = (const Rep&);
 	};
-#else
-  struct Rep;
-#endif
   Rep* rep_;
 
   explicit Table(Rep* rep) : rep_(rep) { }
@@ -103,28 +96,15 @@ class Table {
   // Calls (*handle_result)(arg, ...) with the entry found after a call
   // to Seek(key).  May not make such a call if filter policy says
   // that key is not present.
-#if BLEARN
   Status InternalGet(const ReadOptions&, const Slice& key, void* arg,
 							      void (*handle_result)(void* arg, const Slice& k, const Slice& v), int level,
 							      FileMetaData* meta = nullptr, uint64_t lower = 0, uint64_t upper = 0,
 							      bool learned = false, Version* version = nullptr);
-#else
-  Status InternalGet(
-      const ReadOptions&, const Slice& key,
-      void* arg,
-      void (*handle_result)(void* arg, const Slice& k, const Slice& v));
-#endif
-
 
   void ReadMeta(const Footer& footer);
   void ReadFilter(const Slice& filter_handle_value);
 
-#if LEARN
   void FillData(const ReadOptions& options, koo::LearnedIndexData* data);
-#if MODEL_ACCURACY
-  void TestModelAccuracy(uint64_t& file_number);
-#endif
-#endif
 
   // No copying allowed
   Table(const Table&);

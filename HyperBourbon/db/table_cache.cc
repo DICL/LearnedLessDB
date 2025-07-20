@@ -107,7 +107,6 @@ Iterator* TableCache::NewIterator(const ReadOptions& options,
   return result;
 }
 
-#if BLEARN
 Status TableCache::Get(const ReadOptions& options, uint64_t file_number,
                        uint64_t file_size, const Slice& k, void* arg,
                        void (*handle_result)(void*, const Slice&, const Slice&), int level,
@@ -117,10 +116,7 @@ Status TableCache::Get(const ReadOptions& options, uint64_t file_number,
   Cache::Handle* handle = NULL;
   koo::Stats* instance = koo::Stats::GetInstance();
 
-#if TIME_R || TIME_R_LEVEL
-	std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
-#if BOURBON_PLUS && REMOVE_MUTEX
+#if BOURBON_PLUS
 	koo::LearnedIndexData* model_ = koo::file_data->GetModelForLookup(meta->number);
 	if (model_ != nullptr) {
 		*model = model_;
@@ -133,20 +129,9 @@ Status TableCache::Get(const ReadOptions& options, uint64_t file_number,
   	if (learned || *file_learned) {
   		LevelRead(options, file_number, file_size, k, arg, handle_result, level,
 								meta, lower, upper, learned, version);
-#if TIME_R || TIME_R_LEVEL
-			std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-#if TIME_R
-			koo::m_path += nano.count();
-			koo::num_m_path++;
-#endif
-#if TIME_R_LEVEL
-			koo::m_path_l[level] += nano.count();
-			koo::num_m_path_l[level]++;
-#endif
-#endif
 			return Status::OK();
 		}
-#if BOURBON_PLUS && REMOVE_MUTEX
+#if BOURBON_PLUS
 	}
 #endif
 
@@ -156,43 +141,8 @@ Status TableCache::Get(const ReadOptions& options, uint64_t file_number,
     s = t->InternalGet(options, k, arg, handle_result, level, meta, lower, upper, learned, version);
     cache_->Release(handle);
   }
-#if TIME_R || TIME_R_LEVEL
-	std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-#if TIME_R
-	koo::i_path += nano.count();
-	koo::num_i_path++;
-#endif
-#if TIME_R_LEVEL
-	koo::i_path_l[level] += nano.count();
-	koo::num_i_path_l[level]++;
-#endif
-#endif
   return s;
 }
-#else
-Status TableCache::Get(const ReadOptions& options,
-                       uint64_t file_number,
-                       uint64_t file_size,
-                       const Slice& k,
-                       void* arg,
-                       void (*saver)(void*, const Slice&, const Slice&)) {
-#if LEARN
-	// Check if model exists
-	koo::LearnedIndexData* model = koo::file_data->GetModel(file_number);
-	if (model->Learned()) {
-		return ModelGet(file_number, file_size, k, arg, saver, model);
-	}
-#endif
-  Cache::Handle* handle = NULL;
-  Status s = FindTable(file_number, file_size, &handle);
-  if (s.ok()) {
-    Table* t = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->table;
-    s = t->InternalGet(options, k, arg, saver);
-    cache_->Release(handle);
-  }
-  return s;
-}
-#endif
 
 void TableCache::Evict(uint64_t file_number) {
   char buf[sizeof(file_number)];
@@ -200,7 +150,6 @@ void TableCache::Evict(uint64_t file_number) {
   cache_->Erase(Slice(buf, sizeof(buf)));
 }
 
-#if LEARN && BLEARN
 void TableCache::LevelRead(const ReadOptions& options, uint64_t file_number, 
 														uint64_t file_size, const Slice& k, void* arg, 
 														void (*handle_result)(void*, const Slice&, const Slice&), int level,
@@ -259,13 +208,6 @@ void TableCache::LevelRead(const ReadOptions& options, uint64_t file_number,
   // Get the interval within the data block that the target key may lie in
   size_t pos_block_lower = i == index_lower ? lower % koo::block_num_entries : 0;
   size_t pos_block_upper = i == index_upper ? upper % koo::block_num_entries : koo::block_num_entries - 1;
-#if DEBUG
-  /*std::cout << lower << " " << upper << " " << koo::block_num_entries << std::endl;
-  std::cout << index_lower << " " << index_upper << std::endl;
-  std::cout << koo::block_size << " " << i << " " << block_offset << std::endl;
-  std::cout << pos_block_lower << " " << pos_block_upper << std::endl;
-  std::cout << std::endl;*/
-#endif
 
   // Read corresponding entries
   size_t read_size = (pos_block_upper - pos_block_lower + 1) * koo::entry_size;
@@ -297,37 +239,6 @@ void TableCache::LevelRead(const ReadOptions& options, uint64_t file_number,
   handle_result(arg, key, value);
 
 	cache_->Release(handle);
-#if LOOKUP_ACCURACY
-	size_t pos_block_mid, diff_abs;
-	if (index_lower == index_upper) {
-		pos_block_mid = (pos_block_lower + pos_block_upper) / 2 + 1;
-		if (pos_block_mid > left) {
-			diff_abs = pos_block_mid - left;
-		} else {
-			diff_abs = left - pos_block_mid;
-		}
-	} else {
-		size_t mid = (lower + upper) / 2;
-		size_t index_mid = mid / koo::block_num_entries;
-		pos_block_mid = mid % koo::block_num_entries;
-		if (pos_block_mid > left) {
-			if (index_mid == i) diff_abs = pos_block_mid - left;
-			else diff_abs = (koo::block_num_entries - pos_block_mid) + left;
-		} else {
-			if (index_mid == i) diff_abs = left - pos_block_mid;
-			else diff_abs = (koo::block_num_entries - left) + pos_block_mid;
-		}
-	}
-	if (diff_abs > 9) {			// 9까지는 가능. lower, upper 구할 때 각각 floor, ceil해서
-		fprintf(stderr, "Error! diff_abs: %lu, level: %d, pos_mid: %lu, left: %lu, pos_lower: %lu, pos_upper: %lu\n\tindex_lower: %lu, index_upper: %lu, lower: %lu, upper: %lu\n", diff_abs, level, pos_block_mid, left, pos_block_lower, pos_block_upper, index_lower, index_upper, lower, upper);
-	} else {
-		koo::lm_num_error[level]++;
-		koo::lm_error[level] += diff_abs;
-		std::ofstream ofs("/koo/HyperBourbon/koo/data/lookup_error_"+std::to_string(level)+".txt", std::ios::app);
-		ofs << diff_abs << std::endl;
-		ofs.close();
-	}
-#endif
 }
 
 bool TableCache::FillData(const ReadOptions& options, FileMetaData* meta, koo::LearnedIndexData* data) {
@@ -341,17 +252,5 @@ bool TableCache::FillData(const ReadOptions& options, FileMetaData* meta, koo::L
 		return true;
 	} else return false;
 }
-
-#if MODEL_ACCURACY
-void TableCache::TestModelAccuracy(uint64_t& file_number, uint64_t& file_size) {
-	Cache::Handle* handle = nullptr;
-	Status s = FindTable(file_number, file_size, &handle);
-	if (s.ok()) {
-		Table* t = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->table;
-		t->TestModelAccuracy(file_number);
-	}
-}
-#endif
-#endif
 
 }  // namespace leveldb

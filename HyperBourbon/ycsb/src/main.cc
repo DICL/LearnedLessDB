@@ -44,9 +44,8 @@ int main(int argc, char* argv[]){
   //options.filter_policy = nullptr;
 
   options.num_background_jobs = std::stoi(common_props.GetProperty("max_background_jobs"));
-#if MULTI_LEARNING
   options.env->num_learning_jobs = std::stoi(common_props.GetProperty("max_learning_jobs"));
-#endif
+  koo::learn_model_error = std::stod(common_props.GetProperty("learned_model_error_bound"));
 
 #if YCSB_COPYDB
   // Copy DB

@@ -222,10 +222,8 @@ class RocksDBClient{
 		//std::atomic<uint64_t> read_finished;
 
 #endif
-#if YCSB_THROUGHPUTHIST
-    thread_data* td_[80];
-    std::atomic<bool> stop_;
-#endif
+    //thread_data* td_[80];
+    //std::atomic<bool> stop_;
 
 
 		/*std::vector<leveldb::LiveFileMetaData>  GetMetadata(std::string dir){

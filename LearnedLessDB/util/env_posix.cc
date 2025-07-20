@@ -872,29 +872,7 @@ class PosixEnv : public Env {
 				FileMetaData* meta = top.second;
 				koo::LearnedIndexData* model = koo::file_data->GetModel(meta->number);
 				prepare_queue_mutex_.Unlock();
-#if TIME_W
-				std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
-#if SST_LIFESPAN
-				uint64_t file_number = meta->number;
-				koo::mutex_lifespan_.lock();
-				koo::lifespans[file_number].W_end = NowMicros();
-				koo::mutex_lifespan_.unlock();
-#endif
-				uint64_t ret = koo::LearnedIndexData::FileLearn(new koo::MetaAndSelf{nullptr, 0, meta, model, level});
-#if SST_LIFESPAN
-				koo::mutex_lifespan_.lock();
-				koo::lifespans[file_number].M_end = NowMicros();
-				if (ret) koo::lifespans[file_number].learned = true;
-				koo::mutex_lifespan_.unlock();
-#endif
-#if TIME_W
-				if (ret) {
-					std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-					koo::learntime += nano.count();
-					koo::num_learntime++;
-				}
-#endif
+				koo::LearnedIndexData::FileLearn(new koo::MetaAndSelf{nullptr, 0, meta, model, level});
 				prepare_queue_mutex_.Lock();
 #if RETRAIN3
 				if (high) high_q.pop();

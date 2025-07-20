@@ -109,15 +109,12 @@ Iterator* TableCache::NewIterator(const ReadOptions& options,
 Status TableCache::Get(const ReadOptions& options,
                        uint64_t file_number,
                        uint64_t file_size,
-#if RETRAIN || TIME_R_LEVEL || AC_TEST2
+#if RETRAIN
 											 int level, FileMetaData* meta,
 #endif
                        const Slice& k,
                        void* arg,
                        void (*saver)(void*, const Slice&, const Slice&)) {
-#if TIME_R || TIME_R_LEVEL || AC_TEST2
-	std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
 	// Check if model exists
 	koo::LearnedIndexData* model = koo::file_data->GetModelForLookup(file_number);
 	if (model != nullptr && model->Learned()) {
@@ -125,46 +122,6 @@ Status TableCache::Get(const ReadOptions& options,
 		Status s = ModelGet(file_number, file_size, k, arg, saver, level, meta, model);
 #else
 		Status s = ModelGet(file_number, file_size, k, arg, saver, model);
-#endif
-#if TIME_R || TIME_R_LEVEL || AC_TEST2
-		std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-		if (model->Merged()) {
-#if TIME_R
-			koo::m_path += nano.count();
-			koo::num_m_path++;
-#endif
-#if TIME_R_LEVEL
-			koo::m_path_l[level] += nano.count();
-			koo::num_m_path_l[level]++;
-#endif
-#if AC_TEST2
-			koo::served_m_time[level-2].val += nano.count();
-			koo::served_m[level-2].val++;
-#endif
-		} else {
-#if TIME_R
-			koo::l_path += nano.count();
-			koo::num_l_path++;
-#endif
-#if TIME_R_LEVEL
-			koo::l_path_l[level] += nano.count();
-			koo::num_l_path_l[level]++;
-#endif
-#if AC_TEST2
-#if RETRAIN
-			if (model->is_retrained_) {
-				if (level == 0) fprintf(stderr, "!!!!!!!L0\n");
-				koo::served_r_time[level-2].val += nano.count();
-				koo::served_r[level-2].val++;
-			} else {
-#endif
-				koo::served_l_time[level].val += nano.count();
-				koo::served_l[level].val++;
-#if RETRAIN
-			}
-#endif
-#endif
-		}
 #endif
 		return s;
 	}
@@ -175,21 +132,6 @@ Status TableCache::Get(const ReadOptions& options,
     s = t->InternalGet(options, k, arg, saver);
     cache_->Release(handle);
   }
-#if TIME_R || TIME_R_LEVEL || AC_TEST2
-	std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-#if TIME_R
-	koo::i_path += nano.count();
-	koo::num_i_path++;
-#endif
-#if TIME_R_LEVEL
-	koo::i_path_l[level] += nano.count();
-	koo::num_i_path_l[level]++;
-#endif
-#if AC_TEST2
-	koo::served_i_time[level].val += nano.count();
-	koo::served_i[level].val++;
-#endif
-#endif
   return s;
 }
 
@@ -287,9 +229,6 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 
 	Saver* saver_ = reinterpret_cast<Saver*>(arg);
 	if (isMergedModel && saver_->state == kNotFound) {		// Linear search on data blocks + retrain if needed
-#if AC_TEST2
-		std::chrono::system_clock::time_point StartTime2 = std::chrono::system_clock::now();
-#endif
 		if (left > pos_block_lower && left < pos_block_upper) {			// wrong table
 			cache_->Release(handle);
 			return s;
@@ -328,9 +267,6 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 				}
 			}
 		}
-#if AC_TEST2
-		koo::merged_model_miss++;
-#endif
 
 		// Find i_ using index block
 		Block* index_block = tf->table->rep_->index_block;
@@ -400,9 +336,6 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 			env_->PrepareLearning(level, meta_);
 #endif
 		}
-#if AC_TEST
-		koo::num_tryretraining++;
-#endif
 #endif
 #if RETRAIN2
 		uint64_t last_left = left;
@@ -454,16 +387,10 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 				env_->PrepareLearning(level, meta_);
 #endif
 			}
-#if AC_TEST
-			koo::num_tryretraining++;
-#endif
 		}
 		else {
 			if (extra_error+10+cur_error > 51) model->SetError(cur_error, extra_error);
 			else model->SetError(cur_error, extra_error+10);
-#if AC_TEST
-			koo::num_erroradded++;
-#endif
 		}
 #endif
 
@@ -474,16 +401,6 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 	  assert(key_ptr != nullptr && shared == 0 && "Entry Corruption");
 		Slice key(key_ptr, non_shared), value(key_ptr + non_shared, value_length);
 	  saver(arg, key, value);
-
-#if AC_TEST2
-		std::chrono::nanoseconds nano2 = std::chrono::system_clock::now() - StartTime2;
-		koo::linear_time += nano2.count();
-		koo::linear_num++;
-
-		Saver* saver_ = reinterpret_cast<Saver*>(arg);
-		if (saver_->state == kFound) koo::served_m_linear++;
-		else koo::served_m_linear_fail++;
-#endif
 
 		cache_->Release(handle);
 		return s;

@@ -25,47 +25,15 @@
 
 namespace leveldb {
 
-#if BLEARN
 double MaxBytesForLevel(unsigned level) {
-#else
-static double MaxBytesForLevel(unsigned level) {
-#endif
   assert(level < leveldb::config::kNumLevels);
-  /*static const double bytes[] = {10 * 1048576.0,		// Bourbon default
-                                 10 * 1048576.0,
-                                 100 * 1048576.0,
-                                 1000 * 1048576.0,
-                                 10000 * 1048576.0,
-                                 100000 * 1048576.0,
-                                 1000000 * 1048576.0};*/
-  /*static const double bytes[] = {64 * 1048576.0,		// HyperLevelDB default
-                                 128 * 1048576.0,
-                                 512 * 1048576.0,
-                                 4096 * 1048576.0,
-                                 32768 * 1048576.0,
-                                 262144 * 1048576.0,
-                                 2097152 * 1048576.0};*/
-  /*static const double bytes[] = {64 * 1048576.0,
-                                 64 * 1048576.0,
-                                 64 * 10 * 1048576.0,
-                                 64 * 100 * 1048576.0,
-                                 64 * 1000 * 1048576.0,
-                                 64 * 10000 * 1048576.0,
-                                 64 * 100000 * 1048576.0};*/
-  static const double bytes[] = {256 * 1048576.0,			// RocksDB default
+  static const double bytes[] = {256 * 1048576.0,	
                                  256 * 1048576.0,
                                  256 * 10 * 1048576.0,
                                  256 * 100 * 1048576.0,
                                  256 * 1000 * 1048576.0,
                                  256 * 10000 * 1048576.0,
                                  256 * 100000 * 1048576.0};
-  /*static const double bytes[] = {256 * 1048576.0,
-                                 256 * 1048576.0,
-                                 256 * 4 * 1048576.0,
-                                 256 * 16 * 1048576.0,
-                                 256 * 64 * 1048576.0,
-                                 256 * 256 * 1048576.0,
-                                 256 * 100000 * 1048576.0};*/
   return bytes[level];
 }
 
@@ -81,34 +49,9 @@ static uint64_t MinFileSizeForLevel(unsigned level) {
   return bytes[level];
 }
 
-#if BLEARN
 uint64_t MaxFileSizeForLevel(unsigned level) {
-#else
-static uint64_t MaxFileSizeForLevel(unsigned level) {
-#endif
   assert(level < leveldb::config::kNumLevels);
-  /*static const uint64_t bytes[] = {2 * 1048576,			// Bourbon default
-                                   2 * 1048576,
-                                   2 * 1048576,
-                                   2 * 1048576,
-                                   2 * 1048576,
-                                   2 * 1048576,
-                                   2 * 1048576};*/
-  /*static const uint64_t bytes[] = {64 * 1048576,		// HyperLevelDB default
-                                   64 * 1048576,
-                                   32 * 1048576,
-                                   16 * 1048576,
-                                   16 * 1048576,
-                                   32 * 1048576,
-                                   64 * 1048576};*/
-  /*static const uint64_t bytes[] = {2 * 1048576,
-                                   2 * 1048576,
-                                   2 * 1048576,
-                                   2 * 1048576,
-                                   2 * 1048576,
-                                   2 * 1048576,
-                                   2 * 1048576};*/
-  static const uint64_t bytes[] = {64 * 1048576,			// RocksDB default
+  static const uint64_t bytes[] = {64 * 1048576,
                                    64 * 1048576,
                                    64 * 1048576,
                                    64 * 1048576,
@@ -438,9 +381,7 @@ Status Version::Get(const ReadOptions& options,
                     const LookupKey& k,
                     std::string* value,
                     GetStats* stats) {
-#if BLEARN
 	koo::Stats* instance = koo::Stats::GetInstance();
-#endif
   Slice ikey = k.internal_key();
   Slice user_key = k.user_key();
   const Comparator* ucmp = vset_->icmp_.user_comparator();
@@ -456,22 +397,17 @@ Status Version::Get(const ReadOptions& options,
   // in an smaller level, later levels are irrelevant.
   std::vector<FileMetaData*> tmp;
   FileMetaData* tmp2;
-#if DEBUG
-	std::vector<std::pair<std::pair<uint64_t, uint64_t>, int>> files2;
-#endif
   for (unsigned level = 0; level < config::kNumLevels; level++) {
     size_t num_files = files_[level].size();
     if (num_files == 0) continue;
 
     // Get the list of files to search in this level
     FileMetaData* const* files = &files_[level][0];
-#if BLEARN
 		uint64_t position_lower = 0;
 		uint64_t position_upper = 0;
 		bool learned = false;
 
 		uint64_t time_started = instance->StartTimer(0);
-#endif
     if (level == 0) {
       // Level-0 files may overlap each other.  Find all files that
       // overlap user_key and process them in order from newest to oldest.
@@ -484,9 +420,7 @@ Status Version::Get(const ReadOptions& options,
         }
       }
       if (tmp.empty()) {
-#if BLEARN
 				instance->PauseTimer(time_started, 0);
-#endif
       	continue;
 			}
 
@@ -515,9 +449,7 @@ Status Version::Get(const ReadOptions& options,
       }
     }
 
-#if BLEARN
 		instance->PauseTimer(time_started, 0);
-#endif
     for (uint32_t i = 0; i < num_files; ++i) {
       if (last_file_read != NULL && stats->seek_file == NULL) {
         // We have had more than one seek for this read.  Charge the 1st file.
@@ -528,9 +460,6 @@ Status Version::Get(const ReadOptions& options,
       FileMetaData* f = files[i];
       last_file_read = f;
       last_file_read_level = level;
-#if DEBUG
-			files2.push_back(std::make_pair(std::make_pair(f->number, f->file_size), level));
-#endif
 
       Saver saver;
       saver.state = kNotFound;
@@ -538,7 +467,6 @@ Status Version::Get(const ReadOptions& options,
       saver.user_key = user_key;
       saver.value = value;
 
-#if LEARN && BLEARN
 			koo::LearnedIndexData* model = nullptr;
 			bool file_learned = false;
 			uint64_t time_started2 = instance->StartTimer(6);
@@ -552,20 +480,16 @@ Status Version::Get(const ReadOptions& options,
 					                           this, &model, &file_learned);
 			}
 			auto temp = instance->PauseTimer(time_started2, 6, true);
-#else
-      s = vset_->table_cache_->Get(options, f->number, f->file_size,
-                                   ikey, &saver, SaveValue);
-#endif
       if (!s.ok()) {
         return s;
       }
 
-#if BLEARN && !LEARNING_ALL && !BOURBON_OFFLINE
+#if !LEARNING_ALL && !BOURBON_OFFLINE
 			koo::learn_cb_model->AddLookupData(level, saver.state == kFound, file_learned, temp.second - temp.first);
 #endif
       switch (saver.state) {
         case kNotFound:
-#if BLEARN && !LEARNING_ALL && !BOURBON_OFFLINE
+#if !LEARNING_ALL && !BOURBON_OFFLINE
 					if (!koo::fresh_write) {
 #if BOURBON_PLUS
 						koo::FileStats* file_stat = koo::file_stats_data->GetFileStats(f->number);
@@ -584,7 +508,7 @@ Status Version::Get(const ReadOptions& options,
 #endif
           break;      // Keep searching in other files
         case kFound:
-#if BLEARN && !LEARNING_ALL && !BOURBON_OFFLINE
+#if !LEARNING_ALL && !BOURBON_OFFLINE
 					if (!koo::fresh_write) {
 #if BOURBON_PLUS
 						koo::FileStats* file_stat = koo::file_stats_data->GetFileStats(f->number);
@@ -613,44 +537,6 @@ Status Version::Get(const ReadOptions& options,
       }
     }
   }
-#if DEBUG
-	std::cout << "\nVersionSet NotFound\tikey = " << ikey.data() << "\n" << std::endl;
-	for (auto& f : files2) {
-		std::cout << "file_number = " << f.first.first << " (level: " << f.second << ")\t";
-		koo::LearnedIndexData* m = koo::file_data->GetModel(f.first.first);
-		if (!m->Learned()) std::cout << "Index block\n";
-		else {
-			std::cout << "Learned model\n";
-
-			ParsedInternalKey parsed_key;
-			ParseInternalKey(ikey, &parsed_key);
-			uint64_t target_int = koo::SliceToInteger(parsed_key.user_key);
-			uint32_t left = 0, right = (uint32_t)(m->string_segments.size()-1);
-			while (left != right - 1) {
-			//while (left < right) {
-				uint32_t mid = (right + left) / 2;
-				if (target_int < m->string_segments[mid].x) right = mid;
-				//else left = mid + 1;
-				else left = mid;
-			}
-			double result = target_int * m->string_segments[left].k + m->string_segments[left].b;
-			double error = m->GetError();
-			uint64_t lower = result - error > 0 ? (uint64_t)std::floor(result - error) : 0;
-			uint64_t upper = (uint64_t)std::ceil(result + error);
-			upper = upper < m->size ? upper : m->size - 1;
-
-			std::cout << "target_int = " << target_int << ", left = " << left << ", size() = " << m->string_segments.size() << std::endl;
-			std::cout << "result = " << result << ", x = " << m->string_segments[left].x << std::endl;
-			std::cout << "lower = " << lower << ", upper = " << upper << ", size = " << m->size << std::endl;
-			std::cout << m->string_segments[left+1].x << std::endl;
-			std::cout << std::endl;
-
-			this->Ref();
-			this->TestModelAccuracy(f.first.first, f.first.second);
-			this->Unref();
-		}
-	}
-#endif
   return Status::NotFound(Slice());  // Use an empty error message for speed
 }
 
@@ -1041,11 +927,8 @@ VersionSet::VersionSet(const std::string& dbname,
 }
 
 VersionSet::~VersionSet() {
-#if LEARN
-#if BOURBON_OFFLINE
-#else
+#if !BOURBON_OFFLINE
 	current_->WriteModel();
-#endif
 #endif
   current_->Unref();
   assert(dummy_versions_.next_ == &dummy_versions_);  // List must be empty
@@ -1507,14 +1390,7 @@ Iterator* VersionSet::MakeInputIterator(Compaction* c) {
     }
   }
   assert(num <= space);
-#if MODELCOMP_TEST
-	Iterator* result;
-	if (c->level()) {
-		result = NewMergingIterator(&icmp_, list, num, c->level());
-	} else result = NewMergingIterator(&icmp_, list, num);
-#else
   Iterator* result = NewMergingIterator(&icmp_, list, num);
-#endif
   delete[] list;
   return result;
 }
@@ -1965,7 +1841,6 @@ void Compaction::MarkFilesBeingCompacted(bool mark_as_compacted) {
 	}
 }
 
-#if LEARN
 bool Version::FillData(const ReadOptions& options, FileMetaData* meta, koo::LearnedIndexData* data) {
 	return vset_->table_cache_->FillData(options, meta, data);
 }
@@ -1979,12 +1854,6 @@ void Version::WriteModel() {
 						vset_->dbname_ + koo::model_dbname + "/" + std::to_string(meta->number) + ".model");
 		}
 	}
-#if MODEL_BREAKDOWN
-	for (int i=0; i<config::kNumLevels; ++i) {
-		if (!(koo::num_lm[i])) continue;
-		std::cout << "[ Level " << i << " ]\t# of learned models: " << koo::num_lm[i] << "\n";
-	}
-#endif
 }
 
 void Version::ReadModel() {
@@ -1997,11 +1866,5 @@ void Version::ReadModel() {
 	}
 }
 
-#if MODEL_ACCURACY
-void Version::TestModelAccuracy(uint64_t& file_number, uint64_t& file_size) {
-	vset_->table_cache_->TestModelAccuracy(file_number, file_size);
-}
-#endif
-#endif
 
 }  // namespace leveldb

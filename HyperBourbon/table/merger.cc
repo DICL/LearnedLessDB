@@ -34,11 +34,7 @@ class MergingIterator : public Iterator {
   void PopCurrentComparison();
   void PushCurrentComparison();
  public:
-#if MODELCOMP_TEST 
-  MergingIterator(const Comparator* comparator, Iterator** children, int n, int level = 0)
-#else
   MergingIterator(const Comparator* comparator, Iterator** children, int n)
-#endif
       : comparator_(comparator),
         children_(new IteratorWrapper[n]),
         comparisons_(new uint64_t[n]),
@@ -48,10 +44,6 @@ class MergingIterator : public Iterator {
         comparisons_intialized_(false),
         current_(NULL),
         status_(),
-#if MODELCOMP_TEST 
-				level_(level),
-				num_comparisons_(0),
-#endif
         direction_(kForward) {
     for (int i = 0; i < n; i++) {
       children_[i].Set(children[i]);
@@ -60,9 +52,6 @@ class MergingIterator : public Iterator {
   }
 
   virtual ~MergingIterator() {
-#if 0&MODELCOMP_TEST 
-		if (level_) koo::num_comparisons[level_-1] += num_comparisons_;
-#endif
     delete[] children_;
     delete[] comparisons_;
     delete[] heap_;
@@ -203,20 +192,12 @@ class MergingIterator : public Iterator {
     kReverse
   };
   Direction direction_;
-
-#if MODELCOMP_TEST 
-	int level_;
-	uint64_t num_comparisons_ = 0;
-#endif
 };
 
 bool HeapComparator::operator ()(unsigned lhs, unsigned rhs) const {
   if (mi_->direction_ == MergingIterator::kForward) {
     std::swap(lhs, rhs);
   }
-#if 0&MODELCOMP_TEST 
-	if (mi_->level_) mi_->num_comparisons_++;
-#endif
   return mi_->comparisons_[lhs] < mi_->comparisons_[rhs] ||
          (mi_->comparisons_[lhs] == mi_->comparisons_[rhs] &&
           mi_->comparator_->Compare(mi_->children_[lhs].key(), mi_->children_[rhs].key()) < 0);
@@ -274,22 +255,14 @@ void MergingIterator::FindLargest() {
 }
 }  // namespace
 
-#if MODELCOMP_TEST 
-Iterator* NewMergingIterator(const Comparator* cmp, Iterator** list, int n, int level) {
-#else
 Iterator* NewMergingIterator(const Comparator* cmp, Iterator** list, int n) {
-#endif
   assert(n >= 0);
   if (n == 0) {
     return NewEmptyIterator();
   } else if (n == 1) {
     return list[0];
   } else {
-#if MODELCOMP_TEST 
-    return new MergingIterator(cmp, list, n, level);
-#else
     return new MergingIterator(cmp, list, n);
-#endif
   }
 }
 

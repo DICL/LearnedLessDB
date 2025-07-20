@@ -26,22 +26,17 @@ RocksDBClient::RocksDBClient(WorkloadProxy* workload_proxy, int num_threads,
 		workload_wrapper_(workload_wrapper),
 #endif
     load_num_(workload_proxy_->record_count()),
-#if YCSB_THROUGHPUTHIST
-    request_num_(workload_proxy->operation_count()),
-    stop_(false) {
-#else
+    //request_num_(workload_proxy->operation_count()),
+    //stop_(false) {
     request_num_(workload_proxy->operation_count()) {
-#endif
     //total_finished_requests_(0),
     //total_write_latency(0),
     //total_read_latency(0),
     //write_finished(0),
     //read_finished(0) {
-#if YCSB_THROUGHPUTHIST
-  for (int i = 0; i < num_threads_; i++) {
+  /*for (int i = 0; i < num_threads_; i++) {
     td_[i] = (thread_data*) aligned_alloc(64, sizeof(thread_data));
-  }
-#endif
+  }*/
 #if !YCSB_COPYDB
   if (!db_) {
     //abort();
@@ -77,8 +72,6 @@ void RocksDBClient::run() {
   } else {
     Work();
   }
-  //koo::Report();
-  //koo::Reset();
 }
 
 void RocksDBClient::Load(){
@@ -95,9 +88,7 @@ void RocksDBClient::Load(){
 	}
 
   // perfmon
-#if YCSB_THROUGHPUTHIST
-  std::thread perfmon_thread = std::thread(std::bind(&RocksDBClient::perfmon_loop, this));
-#endif
+  //std::thread perfmon_thread = std::thread(std::bind(&RocksDBClient::perfmon_loop, this));
 
 	uint64_t num = load_num_ / num_threads_;
 	std::vector<std::thread> threads;
@@ -115,10 +106,8 @@ void RocksDBClient::Load(){
 	}
 	double time = TIME_DURATION(start, TIME_NOW);
 	printf("end time: %s\n", GetDayTime().c_str());
-#if YCSB_THROUGHPUTHIST
-  stop_.store(true);
-  if (perfmon_thread.joinable()) perfmon_thread.join();
-#endif
+  //stop_.store(true);
+  //if (perfmon_thread.joinable()) perfmon_thread.join();
 
 	printf("==================================================================\n");
 	PrintArgs();
@@ -165,9 +154,7 @@ void RocksDBClient::Work(){
 	}
 
   // perfmon
-#if YCSB_THROUGHPUTHIST
-  std::thread perfmon_thread = std::thread(std::bind(&RocksDBClient::perfmon_loop, this));
-#endif
+  //std::thread perfmon_thread = std::thread(std::bind(&RocksDBClient::perfmon_loop, this));
 
 	uint64_t num = request_num_ / num_threads_;
 	std::vector<std::thread> threads;
@@ -186,10 +173,8 @@ void RocksDBClient::Work(){
 		t.join();
 	double time = TIME_DURATION(start, TIME_NOW);
 	printf("end time: %s\n", GetDayTime().c_str());
-#if YCSB_THROUGHPUTHIST
-  stop_.store(true);
-  if (perfmon_thread.joinable()) perfmon_thread.join();
-#endif
+  //stop_.store(true);
+  //if (perfmon_thread.joinable()) perfmon_thread.join();
 
 #if !YCSB_WRAPPER
 	std::string stat_str2;
@@ -342,20 +327,16 @@ void RocksDBClient::RocksDBWorker(uint64_t num, int coreid, bool is_master){
 			//total_read_latency.fetch_add((uint64_t)time);
 			//read_finished.fetch_add(1);
 #endif
-#if YCSB_THROUGHPUTHIST
-      td_[coreid]->total_finished_requests++;
-      td_[coreid]->read_finished++;
-#endif
+      //td_[coreid]->total_finished_requests++;
+      //td_[coreid]->read_finished++;
 		}else if(opt == UPDATE || opt == INSERT || opt == READMODIFYWRITE){
 #if !YCSB_WRAPPER
 			update_time.Insert(time);
 			//total_write_latency.fetch_add((uint64_t)time);
 			//write_finished.fetch_add(1);
 #endif
-#if YCSB_THROUGHPUTHIST
-      td_[coreid]->total_finished_requests++;
-      td_[coreid]->write_finished++;
-#endif
+      //td_[coreid]->total_finished_requests++;
+      //td_[coreid]->write_finished++;
 		}else{
 			assert(0);
 		}
@@ -418,10 +399,8 @@ void RocksDBClient::RocksdDBLoader(uint64_t num, int coreid){
     ///total_write_latency.fetch_add((uint64_t)time);
     ///write_finished.fetch_add(1);
 #endif
-#if YCSB_THROUGHPUTHIST
-    td_[coreid]->total_finished_requests++;
-    td_[coreid]->write_finished++;
-#endif
+    //td_[coreid]->total_finished_requests++;
+    //td_[coreid]->write_finished++;
 	}
   //td_[coreid] = NULL;
   //free(mybuf);
@@ -450,14 +429,12 @@ void RocksDBClient::Reset(){
 	//total_finished_requests_.store(0);
 #endif
 
-#if YCSB_THROUGHPUTHIST
-  for (int i = 0; i < num_threads_; i++) {
+  /*for (int i = 0; i < num_threads_; i++) {
     if (td_[i]) {
       memset(td_[i], 0, sizeof(thread_data));
     }
   }
-  stop_.store(false);
-#endif
+  stop_.store(false);*/
 }
 
 void RocksDBClient::PrintArgs(){
@@ -497,8 +474,7 @@ void RocksDBClient::PrintArgs(){
 }
 
 void RocksDBClient::perfmon_loop() {
-#if YCSB_THROUGHPUTHIST
-  char user_name[100];
+  /*char user_name[100];
   getlogin_r(user_name, 100);
   std::string logdir("/scratch/");
   logdir.append(user_name).append("/logs/leveldb/");
@@ -562,8 +538,7 @@ void RocksDBClient::perfmon_loop() {
 
   outfile.flush();
   outfile.close();
-  fprintf(stdout, "Throughput history is written to: %s\n", finalpath.c_str());
-#endif
+  fprintf(stdout, "Throughput history is written to: %s\n", finalpath.c_str());*/
 }
 
 }

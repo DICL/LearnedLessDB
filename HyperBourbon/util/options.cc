@@ -6,7 +6,6 @@
 
 #include "hyperleveldb/comparator.h"
 #include "hyperleveldb/env.h"
-#include "koo/koo.h"
 
 namespace leveldb {
 
@@ -17,33 +16,13 @@ Options::Options()
       paranoid_checks(false),
       env(Env::Default()),
       info_log(NULL),
-#if LEARN
       write_buffer_size(16<<20),
-      //write_buffer_size(64<<20),
-#else
-      write_buffer_size(4<<20),
-#endif
-#if LEARN
-      max_open_files(1024 * 1024),				// Bourbon의 adgMod::fd_limit
-      //max_open_files(1000),
-#else
-      max_open_files(1000),
-#endif
+      max_open_files(1024 * 1024),
       block_cache(NULL),
       block_size(4096),
       block_restart_interval(16),
-#if LEARN
-      compression(kNoCompression),		// Bourbon
-      //compression(kSnappyCompression),
-#else
-      compression(kSnappyCompression),
-#endif
-#if LEARN
-      //filter_policy(NewBloomFilterPolicy(10)),						// Bourbon
+      compression(kNoCompression),
       filter_policy(NULL),
-#else
-      filter_policy(NULL),
-#endif
       manual_garbage_collection(false) {
 }
 

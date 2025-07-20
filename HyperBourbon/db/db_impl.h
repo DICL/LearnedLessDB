@@ -94,12 +94,10 @@ class DBImpl : public DB {
   SequenceNumber LastSequence();
 
 	koo::VLog* vlog;
-#if LEARN
 	std::atomic<int> version_count;
 	Version* GetCurrentVersion();
 	void ReturnCurrentVersion(Version* version);
 	const std::string GetDBName() { return dbname_;	}
-#endif
 
  private:
   friend class DB;
@@ -277,11 +275,10 @@ class DBImpl : public DB {
   const Comparator* user_comparator() const {
     return internal_comparator_.user_comparator();
   }
-#if REMOVE_MUTEX
+
 	class CurrentForRead;
 
 	std::shared_ptr<CurrentForRead> current_for_read_;
-#endif
 };
 
 // Sanitize db options.  The caller should delete result.info_log if

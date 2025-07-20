@@ -84,10 +84,6 @@ class IntKeyIter {
     num_input_files_ = c_->num_input_files(level_);
     if (string_keys_ != nullptr) {
       file_size_ = string_keys_->size();
-#if MODELCOMP_TEST
-			if (level_) koo::num_keys_upper[c_->level()-1] += file_size_;
-			else koo::num_keys_lower[c_->level()-1] += file_size_;
-#endif
     } else {
       fprintf(stderr, "GetModel nullptr %u\n", c_->level() + level_);
       valid_ = false;
@@ -105,10 +101,6 @@ class IntKeyIter {
       string_keys_ = koo::file_data->GetModelForLookup(c_->input(level_, file_off_)->number)->string_keys;
       if (string_keys_ != nullptr) {
         file_size_ = string_keys_->size();
-#if MODELCOMP_TEST
-				if (level_) koo::num_keys_upper[c_->level()-1] += file_size_;
-				else koo::num_keys_lower[c_->level()-1] += file_size_;
-#endif
       } else {
         fprintf(stderr, "GetModel nullptr 22 %u\n", c_->level() + level_);
         valid_ = false;
@@ -141,13 +133,10 @@ class ModelIter {
             c_(c), level_(level),
             m_(koo::file_data->GetModelForLookup(c_->input(level_, file_off_)->number)),
             curr_(m_->GetSegment(off_)) {
-    //if (curr_.x > curr_.x_last)
-      //is_f_ = false;
   }
 
   void DeleteStringSegments() {
   	if (m_->is_retrained_) {
-  	//if (m_->is_replaced_) {
 	  	m_->string_segments.clear();
 			m_->string_segments.shrink_to_fit();
 		}
@@ -170,8 +159,6 @@ class ModelIter {
         off_ = 0;
       }
       curr_ = m_->GetSegment(off_);
-      //if (curr_.x > curr_.x_last)
-        //is_f_ = false;
     }
   }
   uint64_t key() {
@@ -194,14 +181,8 @@ class ModelIter {
 #else
     	double tmp = get_pos(e) - get_pos(s);
 #endif
-    	/*std::ofstream ofs("/koo/HyperLearningless3/koo/data/test2.txt", std::ios::app);
-    	ofs << "e: " << e << ", s: " << s << ", get_pos(e): " << get_pos(e) << ", get_pos(s): " << get_pos(s) << std::endl;
-    	ofs << "curr_.k: " << curr_.k << ", curr_.b: " << curr_.b << std::endl;
-    	ofs << "tmp: " << tmp << ", uint64_t: " << static_cast<uint64_t>(tmp) << "\n\n";
-    	ofs.close();*/
     	if (tmp <= 0 /*|| std::isnan(tmp)*/) return 0;
     	return static_cast<uint32_t>(tmp);
-      //return (uint32_t)(get_pos(e)-get_pos(s));
     }
   }
 };
@@ -219,28 +200,6 @@ class MergeModelIter {
       child_[i] = new ModelIter(c_, i);
     last_key_ = key();
   }
-
-  /*preSegment GetNext() {
-    uint32_t curr_size = 0;
-    preSegment result;
-    if (valid_) {
-      while(curr_size < 30) {
-        Next();
-        uint64_t next_key = key();
-        if (next_key == 0) {
-          valid_ = false;
-          break;
-        }
-        preSegment next_pre(last_key_, next_key, child_[0]->GetSize(last_key_, next_key), child_[1]->GetSize(last_key_, next_key));
-        assert(next_key >= last_key_); ////////////////////////////////////////////////
-        last_key_ = next_key;
-        result += next_pre;
-        curr_size = next_pre.size();
-      }
-    }
-    result.complete();
-    return result;
-  }*/
 
   preSegment GetNext() {
     preSegment result;
@@ -324,26 +283,15 @@ class MergingWithModelIterator : public Iterator {
     current_key_ = 0;
     for(int i = 0; i < 2; i++)
       int_key_iter_[i] = new IntKeyIter(c, i);
-    /*if (comp_->num_input_files(0) == 1 && comp_->num_input_files(1) == 1 && comp_->input(0,0)->file_size == 140 && comp_->input(1,0)->file_size == 140)
-      SayHi();*/
   }
-  /*void SayHi() {
-    fprintf(stderr, "hi\n");
-  }*/
 
   virtual ~MergingWithModelIterator() {
-#if MODELCOMP_TEST
-		koo::num_inserts[comp_->level()-1] += num_insert;
-		koo::num_comparisons[comp_->level()-1] += num_comparison;
-#endif
-  	m_iter_.DeleteStringSegments();		// TODO
+  	m_iter_.DeleteStringSegments();
     delete[] children_;
     if (top_buffer_)
       free(top_buffer_);
-      //delete[] top_buffer_;
     if (string_keys_) {
       if(string_keys_->size()) {
-        //fprintf(stderr, "~MergingWithModelIterator string_keys not empty!!\n");
       } else {
         delete string_keys_;
         string_keys_ = nullptr;
@@ -380,13 +328,6 @@ class MergingWithModelIterator : public Iterator {
     while(PrepareNext())
       MakeBuffer();
     curr_seg_count_++;
-
-    //for debug
-    /*if (valid_) {
-      ParsedInternalKey ikey;
-      Slice tmp_key = key();
-      ParseInternalKey(tmp_key, &ikey);
-    }*/
   }
 
   virtual void Prev() {
@@ -471,10 +412,6 @@ class MergingWithModelIterator : public Iterator {
   bool int_key_skip_ = false;
 
   const uint64_t max_entry_size_;
-#if MODELCOMP_TEST
-	uint64_t num_insert = 0;
-	uint64_t num_comparison = 0;
-#endif
 
   int PrepareNext() {
     last_key_ = current_key_;
@@ -485,13 +422,7 @@ class MergingWithModelIterator : public Iterator {
     if (move_which_ == 2 || move_which_ == 3) {
       children_[1].Next();
       int_key_iter_[1]->Next();
-      //if (children_[1].Valid() != int_key_iter_[1]->Valid())
-        //fprintf(stderr, "no!!!!!!!!!!! 44\n");
       if (children_[1].Valid()) {
-        //Slice key = children_[1].key();
-        //key_int_ = get_user_key(key);
-        //if (key_int_ != int_key_iter_[1]->key())
-        //  fprintf(stderr, "no !!!!!!!!!!!!!! 22\n");
         key_int_ = int_key_iter_[1]->key();
         y_inf_ = std::max(index_, get_buffer_pos(key_int_, ps));
         if (key_int_ > ps.end) {
@@ -509,9 +440,6 @@ class MergingWithModelIterator : public Iterator {
         is_l0_ = true;
         move_which_ = 1;
         current_key_ = top_buffer_[index_].int_key;
-#if MODELCOMP_TEST
-				num_insert++;
-#endif
         return 0;
       }
       index_++;
@@ -520,9 +448,6 @@ class MergingWithModelIterator : public Iterator {
       }
     }
     if (top_buffer_[index_].int_key) {
-#if MODELCOMP_TEST
-			num_comparison++;
-#endif
       if (top_buffer_[index_].int_key < key_int_) {
         current_key_ = top_buffer_[index_].int_key;
         is_l0_ = true;
@@ -537,9 +462,6 @@ class MergingWithModelIterator : public Iterator {
         move_which_ = 2;
       }
     } else {
-#if MODELCOMP_TEST
-			num_insert++;
-#endif
       current_key_ = key_int_;
       is_l0_ = false;
       move_which_ = 2;
@@ -549,40 +471,24 @@ class MergingWithModelIterator : public Iterator {
 
   void MakeBuffer() {
     if(merge_) {
-      /*if(merge_->seg_infos.size() > 0 && ps.end == merge_->seg_infos.back().first) {
-        fprintf(stderr, "!!!!!!!!!!!!!!!! ps.end == seg.last 11 %lu %lu\n", ps.end, curr_seg_count_);
-      }*/
       if (curr_seg_count_ != 0)
         merge_->seg_infos.push_back(std::make_pair(ps.end, curr_seg_count_));
-      /*else
-        fprintf(stderr, "!!!!!!!!!!!!!!!! ps.end == seg.last 11 %lu %lu %lu\n", ps.end, curr_seg_count_, merge_->seg_infos.size());*/
     }
     ps = m_iter_.GetNext();
     curr_seg_count_ = 0;
-    //fprintf(stdout, "MakeBuffer called %lu %lu %d %d\n", ps.start, ps.end, ps.size0, ps.size1);
     if (ps.end == 0) {
       valid_ = false;
       return;
     }
 
-    //if (top_buffer_size_ < ps.size() + 50) {
     if (top_buffer_size_ < ps.size() * 2 + 100) {
-      //if (top_buffer_)
-        //delete[] top_buffer_;
-      //top_buffer_ = new BufStruct[ps.size() + 40];
       if (top_buffer_)
         free(top_buffer_);
       top_buffer_ = (BufStruct*)calloc(ps.size() * 2 + 100, sizeof(BufStruct));
       top_buffer_size_ = ps.size() * 2 + 100;
-      //top_buffer_ = (BufStruct*)calloc(ps.size() + 50, sizeof(BufStruct));
-      //top_buffer_size_ = ps.size() + 50;
     } else {
       std::memset(top_buffer_, 0, (final_y_+1)*sizeof(BufStruct));
     }
-    /*if (top_buffer_)
-      delete[] top_buffer_;
-    top_buffer_ = new BufStruct[ps.size() + 100];*/
-    //printf("top_buffer_size_ %lu\n\n", top_buffer_size_);
 
     key_buffer_.clear();
     value_buffer_.clear();
@@ -591,12 +497,8 @@ class MergingWithModelIterator : public Iterator {
     int index_for_0 = 0;
     final_y_ = 0;
     while(children_[0].Valid()) {
-      //Slice key = children_[0].key();
-      //uint64_t key_int = get_user_key(key);
-      //if (key_int != int_key_iter_[0]->key())
-        //fprintf(stderr, "no!!!!!!! \n");
       uint64_t key_int = int_key_iter_[0]->key();
-      if (key_int > ps.end) ///////////////////////////////////////////////////////////////////////////
+      if (key_int > ps.end) 
         break;
       uint64_t y_inf = get_buffer_pos(key_int, ps);
       while (top_buffer_[y_inf].int_key) {
@@ -605,20 +507,13 @@ class MergingWithModelIterator : public Iterator {
       top_buffer_[y_inf].int_key = key_int;
       top_buffer_[y_inf].index = index_for_0++;
       final_y_ = y_inf;
-      //key_buffer_.push_back(key.ToString());
       key_buffer_.push_back(children_[0].key().ToString());
       value_buffer_.push_back(children_[0].value().ToString());
       children_[0].Next();
       int_key_iter_[0]->Next();
-      //if (children_[0].Valid() != int_key_iter_[0]->Valid())
-        //fprintf(stderr, "no!!!!!!!!!!! 33 %d %d\n", children_[0].Valid(), int_key_iter_[0]->Valid());
     }
-    //if (final_y_ >= top_buffer_size_)
-      //fprintf(stderr, "no1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!! %lu %lu\n", final_y_, top_buffer_size_);
     index_ = 0;
     if(children_[1].Valid()) {
-      //Slice key = children_[1].key();
-      //key_int_ = get_user_key(key);
       key_int_ = int_key_iter_[1]->key();
       y_inf_ = get_buffer_pos(key_int_, ps);
       if (key_int_ > ps.end) {
@@ -631,11 +526,6 @@ class MergingWithModelIterator : public Iterator {
     move_which_ = 0;
   }
 
-  /*uint64_t get_user_key(Slice &key) {
-    ParsedInternalKey ikey;
-    ParseInternalKey(key, &ikey);
-    return ikey.user_key.SliceToInteger();
-  }*/
   uint64_t get_buffer_pos(uint64_t user_key, preSegment seg) {
 #if NORMARLIZE_KEY
 		uint64_t nor_key = user_key - seg.begin_key + 1;
@@ -650,9 +540,6 @@ class MergingWithModelIterator : public Iterator {
   std::pair<void*, std::vector<uint64_t>*> GetMergeModel(bool include_current) {
     if (include_current) {
       if (curr_seg_count_ > 0) {
-        /*if(merge_->seg_infos.size() > 0 && current_key_ == merge_->seg_infos.back().first) {
-          fprintf(stderr, "!!!!!!!!!!!!!!!! ps.end == seg.last 22 %lu %lu\n", current_key_, curr_seg_count_);
-        }*/
         merge_->seg_infos.push_back(std::make_pair(current_key_, curr_seg_count_));
       }
       string_keys_->push_back(current_key_);
@@ -660,9 +547,6 @@ class MergingWithModelIterator : public Iterator {
       int_key_skip_ = true;
     } else {
       if (curr_seg_count_ > 1) {
-        /*if(merge_->seg_infos.size() > 0 && last_key_ == merge_->seg_infos.back().first) {
-          fprintf(stderr, "!!!!!!!!!!!!!!!! ps.end == seg.last 33 %lu %lu %d\n", last_key_, curr_seg_count_-1, valid_);
-        }*/
         merge_->seg_infos.push_back(std::make_pair(last_key_, curr_seg_count_-1));
       } else if (curr_seg_count_ < 1) {
         fprintf(stderr, "GetMergeModel something wrong!!!!!\n");
@@ -674,8 +558,6 @@ class MergingWithModelIterator : public Iterator {
     merge_ = new koo::MergeModel();
     string_keys_ = new std::vector<uint64_t>();
     string_keys_->reserve(max_entry_size_);
-    /*if(result == nullptr)
-      fprintf(stderr, "!!!!!!!!!!!\n");*/
     return std::make_pair((void*)result, string_keys);
   }
   

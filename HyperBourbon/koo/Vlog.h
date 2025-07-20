@@ -10,6 +10,7 @@
 #include "port/port.h"
 #include <atomic>
 #include <mutex>
+#include "koo/koo.h"
 
 using namespace leveldb;
 

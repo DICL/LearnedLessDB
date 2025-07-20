@@ -37,7 +37,8 @@ for num_threads in 32; do
 	--workloads="l" \
 	--max_background_jobs=$(( num_bg + 1 )) \
 	--max_learning_jobs=${num_l} \
-	--distribution=${req_dist}
+	--distribution=${req_dist} \
+	--learned_model_error_bound=${learned_error_bound}
 
 	for wl in a c; do
 		sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
@@ -50,7 +51,8 @@ for num_threads in 32; do
 		--workloads=${wl} \
 		--max_background_jobs=$(( num_bg + 1 )) \
 		--max_learning_jobs=${num_l} \
-		--distribution=${req_dist}
+		--distribution=${req_dist} \
+		--learned_model_error_bound=${learned_error_bound}
 	done
 
 done

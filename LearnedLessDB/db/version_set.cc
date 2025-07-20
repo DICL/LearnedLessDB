@@ -424,7 +424,7 @@ Status Version::Get(const ReadOptions& options,
       saver.user_key = user_key;
       saver.value = value;
       s = vset_->table_cache_->Get(options, f->number, f->file_size,
-#if RETRAIN || TIME_R_LEVEL || AC_TEST2
+#if RETRAIN
 																	 level, f,
 #endif
                                    ikey, &saver, SaveValue);
@@ -1772,13 +1772,6 @@ void Version::WriteModel() {
 			}
 		}
 	}
-
-#if MODEL_BREAKDOWN
-	for (int i=0; i<config::kNumLevels; ++i) {
-		if (!(koo::num_lm[i]|| koo::num_mm[i])) continue;
-		std::cout << "[ Level " << i << " ]\t# of learned models: " << koo::num_lm[i] << ",\t# of merged models: " << koo::num_mm[i] << "\n";
-	}
-#endif
 }
 
 void Version::ReadModel() {

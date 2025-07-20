@@ -112,12 +112,9 @@ utils::Properties gen_workload_props(const char wl_char, const utils::Properties
 
 void set_default_props(utils::Properties* props) {
 	props->SetProperty("recordcount", "500000000"); // number of records
-	//props->SetProperty("recordcount", "10000000"); // number of records
 	props->SetProperty("operationcount", "10000000"); // number of operations 
 	props->SetProperty("fieldlength", "8");
-	//props->SetProperty("fieldlength", "100");
 	props->SetProperty("fieldcount", "1");
-	//props->SetProperty("fieldcount", "10");
 	props->SetProperty("readallfields", "true");
 	props->SetProperty("requestdistribution", "uniform");
   props->SetProperty("maxscanlength", "100");
@@ -126,9 +123,8 @@ void set_default_props(utils::Properties* props) {
   props->SetProperty("threadcount", "1");
   props->SetProperty("max_write_buffer_number", "2");
   props->SetProperty("max_background_jobs", "2");
-#if MULTI_LEARNING
   props->SetProperty("max_learning_jobs", "1");
-#endif
+  props->SetProperty("learned_model_error_bound", "8");
 }
 
 void parse_command_line_arguments(int argc, char* argv[], utils::Properties* props, std::vector<char>* wl_chars) {
@@ -147,9 +143,8 @@ void parse_command_line_arguments(int argc, char* argv[], utils::Properties* pro
     { "operationcount", required_argument, 0, 0 },
     { "max_write_buffer_number", required_argument, 0, 0 },
     { "max_background_jobs", required_argument, 0, 0 },
-#if MULTI_LEARNING
     { "max_learning_jobs", required_argument, 0, 0 }, 
-#endif
+    { "learned_model_error_bound", required_argument, 0, 0 }, 
     { 0, 0, 0, 0 }
   };
   const static char* optstring = "n:t:w:d:";

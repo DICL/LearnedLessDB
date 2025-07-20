@@ -80,9 +80,6 @@ void YCSBRunner::run_all() {
 		RocksDBClient rocksdb_client0(&(wps[0]), num_threads_, options_, data_dir_, db_, wrappers[0]);
 		RocksDBClient rocksdb_client1(&(wps[1]), num_threads_, options_, data_dir_, db_, wrappers[1]);
 		rocksdb_client0.run();
-#if AC_TEST
-		//koo::count_compaction_triggered_after_load = true;
-#endif
 		rocksdb_client1.run();
 #if YCSB_COPYDB
 		fprintf(stdout, "Start deleting db: %s\n", GetDayTime().c_str());
@@ -100,9 +97,6 @@ void YCSBRunner::run_all() {
 		RocksDBClient rocksdb_client4(&(wps[4]), num_threads_, options_, data_dir_, db_, wrappers[4]);
 		RocksDBClient rocksdb_client5(&(wps[5]), num_threads_, options_, data_dir_, db_, wrappers[5]);
 		rocksdb_client0.run();
-#if AC_TEST
-		//koo::count_compaction_triggered_after_load = true;
-#endif
 		rocksdb_client1.run();
 		rocksdb_client2.run();
 		rocksdb_client3.run();
