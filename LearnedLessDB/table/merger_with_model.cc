@@ -24,23 +24,11 @@ struct preSegment {
   uint32_t size1;
   double k;
   double b;
-#if NORMARLIZE_KEY
-	uint64_t begin_key = 0;
-#endif
 
   preSegment() : start(0), end(0), size0(0), size1(0), k(0), b(0) {}
-#if NORMARLIZE_KEY
-  preSegment(uint64_t _start, uint64_t _end, uint32_t _size0, uint32_t _size1) : start(_start), end(_end), size0(_size0), size1(_size1) {
-  	if (begin_key == 0) begin_key = _start;
-  }
-#else
   preSegment(uint64_t _start, uint64_t _end, uint32_t _size0, uint32_t _size1) : start(_start), end(_end), size0(_size0), size1(_size1) {}
-#endif
 
   preSegment& operator+=(const preSegment& other) {
-#if NORMARLIZE_KEY
-		if (begin_key == 0) this->begin_key = other.start;
-#endif
     if (start == 0)
       this->start = other.start;
     this->end = other.end;
@@ -54,12 +42,7 @@ struct preSegment {
     if (end) {
       if (end != start) {
         k = static_cast<double>(size()) / static_cast<double>(end - start);
-#if NORMARLIZE_KEY
-				uint64_t nor_key = start - begin_key + 1;
-        b = static_cast<double>(nor_key) * k * -1.0;
-#else
         b = static_cast<double>(start) * k * -1.0;
-#endif
       }
     }
   }
@@ -175,11 +158,7 @@ class ModelIter {
     if (is_f_)
       return 0;
     else {
-#if NORMARLIZE_KEY
-			double tmp = get_pos(e - m_->min_key + 1) - get_pos(s - m_->min_key + 1);
-#else
     	double tmp = get_pos(e) - get_pos(s);
-#endif
     	if (tmp <= 0 /*|| std::isnan(tmp)*/) return 0;
     	return static_cast<uint32_t>(tmp);
     }
@@ -526,12 +505,7 @@ class MergingWithModelIterator : public Iterator {
   }
 
   uint64_t get_buffer_pos(uint64_t user_key, preSegment seg) {
-#if NORMARLIZE_KEY
-		uint64_t nor_key = user_key - seg.begin_key + 1;
-    double result = static_cast<double>(nor_key) * seg.k + seg.b;
-#else
     double result = user_key * seg.k + seg.b;
-#endif
     return result < 0 ? 0 : static_cast<uint64_t>(std::floor(result));
   }
 

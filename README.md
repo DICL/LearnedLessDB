@@ -8,7 +8,6 @@ Install
     $ ./configure
     $ make
     # make install
-    # ldconfig
 
 
 Run YCSB

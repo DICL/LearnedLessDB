@@ -18,9 +18,6 @@
 #include <mutex>
 #include <condition_variable>
 
-#define YCSB_COPYDB 1
-#define NORMARLIZE_KEY 0		// key - min_key
-
 namespace koo {
 
 extern bool run_sosd;

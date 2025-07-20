@@ -16,8 +16,6 @@
 #include <mutex>
 #include <condition_variable>
 
-#define YCSB_COPYDB 1
-
 namespace koo {
 
 extern bool run_sosd;

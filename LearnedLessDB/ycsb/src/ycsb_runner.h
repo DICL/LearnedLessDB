@@ -16,11 +16,8 @@ class YCSBRunner {
               leveldb::Options options,
               std::string data_dir,
               leveldb::DB* db);
-#if YCSB_COPYDB
    leveldb::DB* run_all();
-#else
-   void run_all();
-#endif
+   //void run_all();
  private:
   const int num_threads_;
   std::vector<CoreWorkload*> workloads_;
@@ -40,11 +37,8 @@ YCSBRunner::YCSBRunner(const int num_threads, std::vector<CoreWorkload*> workloa
       db_(db) {
 }
 
-#if YCSB_COPYDB
 leveldb::DB* YCSBRunner::run_all() {
-#else
-void YCSBRunner::run_all() {
-#endif
+//void YCSBRunner::run_all() {
   /*for (auto& wl : workloads_) {
     WorkloadProxy wp(wl);
     RocksDBClient rocksdb_client(&wp, num_threads_, options_, data_dir_, db_);
@@ -64,7 +58,6 @@ void YCSBRunner::run_all() {
 		else wrappers.push_back(new WorkloadWrapper(&wp, request_num, false));
 	}
 
-#if YCSB_COPYDB
 	if (!db_) {
 		leveldb::Status s = leveldb::DB::Open(options_, data_dir_, &db_);
 		if (!s.ok() || !db_) {
@@ -72,17 +65,14 @@ void YCSBRunner::run_all() {
 			exit(0);
 		}
 	}
-#endif
 
 	if (size == 2) {
 		RocksDBClient rocksdb_client0(&(wps[0]), num_threads_, options_, data_dir_, db_, wrappers[0]);
 		RocksDBClient rocksdb_client1(&(wps[1]), num_threads_, options_, data_dir_, db_, wrappers[1]);
 	  rocksdb_client0.run();
 		rocksdb_client1.run();
-#if YCSB_COPYDB
 		delete db_;
 		db_ = nullptr;
-#endif
 	} else if (size == 6) {
 		RocksDBClient rocksdb_client0(&(wps[0]), num_threads_, options_, data_dir_, db_, wrappers[0]);
 		RocksDBClient rocksdb_client1(&(wps[1]), num_threads_, options_, data_dir_, db_, wrappers[1]);
@@ -96,31 +86,23 @@ void YCSBRunner::run_all() {
 		rocksdb_client3.run();
 		rocksdb_client4.run();
 		rocksdb_client5.run();
-#if YCSB_COPYDB
 		delete db_;
 		db_ = nullptr;
-#endif
 	} else if (size == 1) {
 		RocksDBClient rocksdb_client(&(wps[0]), num_threads_, options_, data_dir_, db_, wrappers[0]);
 		rocksdb_client.run();
-#if YCSB_COPYDB
 		delete db_;
 		db_ = nullptr;
-#endif
 	} else {
 		for (int i=0; i<size; i++) {
 	    WorkloadProxy wp(workloads_[i]);
 			RocksDBClient rocksdb_client(&(wps[i]), num_threads_, options_, data_dir_, db_, wrappers[i]);
 		  rocksdb_client.run();
 		}
-#if YCSB_COPYDB
 		delete db_;
 		db_ = nullptr;
-#endif
 	}
-#if YCSB_COPYDB
 	return db_;
-#endif
   /*for (int i=0; i<size; i++) {
     WorkloadProxy wp(workloads_[i]);
     RocksDBClient rocksdb_client(&wp, num_threads_, options_, data_dir_, db_);

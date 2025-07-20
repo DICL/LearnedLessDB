@@ -31,8 +31,7 @@ RocksDBClient::RocksDBClient(WorkloadProxy* workload_proxy, int num_threads,
   /*for (int i = 0; i < num_threads_; i++) {
     td_[i] = (thread_data*) aligned_alloc(64, sizeof(thread_data));
   }*/
-#if !YCSB_COPYDB
-  if (!db_) {
+  /*if (!db_) {
     //abort();
     leveldb::Status s = leveldb::DB::Open(options_, data_dir_, &db_);
     if (!s.ok()) {
@@ -40,8 +39,7 @@ RocksDBClient::RocksDBClient(WorkloadProxy* workload_proxy, int num_threads,
       exit(0);
     }
     delete_db_ = true;
-  }
-#endif
+  }*/
   Reset();
 }
 

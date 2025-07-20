@@ -6,7 +6,7 @@ set -o pipefail
 
 ##
 # *** WORKLOAD CONFIGURATION ***
-recordcount=$((50*1000*1000))  # 100 M
+recordcount=$((500*1000*1000))  # 100 M
 operationcount=$((10*1000*1000))  # 10 M
 scan_operationcount=$((10*1000*1000))  # 10 M
 field_len=64
@@ -43,7 +43,7 @@ $ycsb \
 	--merged_model_error_bound=${merged_error_bound} \
 	--db_path=${db_path}
 
-for wl in a c; do
+for wl in a b c f d e; do
 	sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
 	$ycsb \
 		--recordcount=${recordcount} \

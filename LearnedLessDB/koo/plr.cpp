@@ -161,16 +161,8 @@ PLR::train(std::vector<uint64_t>& keys) {
     int count = 0;
     size_t size = keys.size();
     uint64_t x = keys[0];
-#if NORMARLIZE_KEY
-    uint64_t begin_key = keys[0];
-#endif
     for (int i = 0; i < size; ++i) {
-#if NORMARLIZE_KEY
-        uint64_t key = keys[i] - begin_key + 1;
-        Segment seg = plr.process(point(static_cast<double>(key), i));
-#else
         Segment seg = plr.process(point(static_cast<double>(keys[i]), i));
-#endif
         if (seg.x != 0 ||
             seg.k != 0 ||
             seg.b != 0) {

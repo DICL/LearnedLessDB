@@ -51,12 +51,7 @@ std::pair<uint64_t, uint64_t> LearnedIndexData::GetPosition(
 		return std::make_pair(size, size);*/
 
   // calculate the interval according to the selected segment
-#if NORMARLIZE_KEY
-	uint64_t nor_key = target_int - min_key + 1;
-  double result = static_cast<double>(nor_key) * k + b;
-#else
   double result = target_int * k + b;
-#endif
 	double error = GetError();
   uint64_t lower =
       result - error > 0 ? (uint64_t)std::floor(result - error) : 0;

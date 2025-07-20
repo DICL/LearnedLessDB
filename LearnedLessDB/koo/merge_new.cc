@@ -21,12 +21,7 @@ Segment MergeModel::MakeSegment(uint64_t x, double y,
 	if (x_delta+1 < y_delta) y_delta = x_delta + 1;
 
 	double a = y_delta / static_cast<double>(x_delta);
-#if NORMARLIZE_KEY
-	uint64_t nor_key = x_last - begin_key + 1;
-	double b = std::floor(y_last) - a * static_cast<double>(nor_key);
-#else
 	double b = std::floor(y_last) - a * x_last;
-#endif
 	return Segment(x, a, b, x_last, std::floor(y_last));
 }
 
