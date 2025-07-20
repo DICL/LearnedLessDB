@@ -23,8 +23,6 @@
 #define YCSB_COPYDB 1			// SpanDB ycsb load 외 워크로드 전 db copy -> copy한 db에서 워크로드 실험
 #define YCSB_SOSD 0		// records=600M
 
-#define MULTI_COMPACTION 1
-
 #define LEARN 1
 #define NORMARLIZE_KEY 0		// key - min_key. 선분 k, b만
 

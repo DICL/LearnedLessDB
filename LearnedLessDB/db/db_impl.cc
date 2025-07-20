@@ -246,11 +246,7 @@ DBImpl::DBImpl(const Options& raw_options, const std::string& dbname)
       snapshots_(),
       pending_outputs_(),
       allow_background_activity_(false),
-#if MULTI_COMPACTION
       num_bg_threads_(raw_options.num_background_jobs),
-#else
-      num_bg_threads_(0),
-#endif
       bg_mem_job_cv_(&mutex_),
       bg_fg_cv_(&mutex_),
       bg_compaction_cv_(&mutex_),
@@ -274,14 +270,9 @@ DBImpl::DBImpl(const Options& raw_options, const std::string& dbname)
   has_imm_.Release_Store(NULL);
   backup_in_progress_.Release_Store(NULL);
   env_->StartThread(&DBImpl::CompactMemTableWrapper, this);
-#if MULTI_COMPACTION
 	for (int i = 1; i < num_bg_threads_; i++) {
 		env_->StartThread(&DBImpl::CompactLevelWrapper, this);
 	}
-#else
-  env_->StartThread(&DBImpl::CompactLevelWrapper, this);
-  num_bg_threads_ = 2;
-#endif
 	koo::db = this;
 	vlog = new koo::VLog(dbname_ + "/vlog.txt");
 
@@ -291,11 +282,6 @@ DBImpl::DBImpl(const Options& raw_options, const std::string& dbname)
   versions_ = new VersionSet(dbname_, &options_, table_cache_,
                              &internal_comparator_);
 
-#if !MULTI_COMPACTION
-  for (unsigned i = 0; i < leveldb::config::kNumLevels; ++i) {
-    levels_locked_[i] = false;
-  }
-#endif
   mutex_.Unlock();
   writers_mutex_.Lock();
   writers_mutex_.Unlock();
@@ -703,14 +689,7 @@ Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
     const Slice min_user_key = meta.smallest.user_key();
     const Slice max_user_key = meta.largest.user_key();
     if (base != NULL) {
-#if MULTI_COMPACTION
 			level = 0;
-#else
-      level = base->PickLevelForMemTableOutput(min_user_key, max_user_key);
-      while (level > 0 && levels_locked_[level]) {
-        --level;
-      }
-#endif
     }
     edit->AddFile(level, meta.number, meta.file_size,
                   meta.smallest, meta.largest);
@@ -904,30 +883,17 @@ void DBImpl::CompactLevelThread() {
     bg_compaction_cv_.Wait();
   }
   while (!shutting_down_.Acquire_Load()) {
-#if MULTI_COMPACTION
 		unsigned level = config::kNumLevels;
     while (!shutting_down_.Acquire_Load() && manual_compaction_ == NULL) {
     	level = versions_->PickCompactionLevel(straight_reads_ > kStraightReads);
     	if (level != config::kNumLevels) break;
       bg_compaction_cv_.Wait();
 		}
-#else
-    while (!shutting_down_.Acquire_Load() &&
-           manual_compaction_ == NULL &&
-           !versions_->NeedsCompaction(levels_locked_, straight_reads_ > kStraightReads)) {
-      bg_compaction_cv_.Wait();
-    }
-#endif
     if (shutting_down_.Acquire_Load()) {
       break;
     }
 
-#if MULTI_COMPACTION
     Status s = BackgroundCompaction(level);
-#else
-    assert(manual_compaction_ == NULL || num_bg_threads_ == 2);
-    Status s = BackgroundCompaction();
-#endif
     bg_fg_cv_.SignalAll(); // before the backoff In case a waiter
                            // can proceed despite the error
 
@@ -935,12 +901,8 @@ void DBImpl::CompactLevelThread() {
       // Success
     } else if (shutting_down_.Acquire_Load()) {
       // Error most likely due to shutdown; do not wait
-#if MULTI_COMPACTION
-    } else if (s.IsNotFound()) { //lemma compaction
-      //fprintf(stderr, "%s\n", s.ToString().c_str());
+    } else if (s.IsNotFound()) {
       bg_compaction_cv_.Wait();
-      //fprintf(stderr, "not found wait done!\n");
-#endif
     } else {
       // Wait a little bit before retrying background compaction in
       // case this is an environmental problem and we do not want to
@@ -967,11 +929,7 @@ void DBImpl::RecordBackgroundError(const Status& s) {
   }
 }
 
-#if MULTI_COMPACTION
 Status DBImpl::BackgroundCompaction(unsigned level) {
-#else
-Status DBImpl::BackgroundCompaction() {
-#endif
   mutex_.AssertHeld();
   Compaction* c = NULL;
   bool is_manual = (manual_compaction_ != NULL);
@@ -990,53 +948,30 @@ Status DBImpl::BackgroundCompaction() {
         (m->end ? m->end->DebugString().c_str() : "(end)"),
         (m->done ? "(end)" : manual_end.DebugString().c_str()));
   } else {
-#if !MULTI_COMPACTION
-    unsigned level = versions_->PickCompactionLevel(levels_locked_, straight_reads_ > kStraightReads);
-#endif
     if (level != config::kNumLevels) {
       c = versions_->PickCompaction(versions_->current(), level);
     }
-#if !MULTI_COMPACTION
-    if (c) {
-      assert(!levels_locked_[c->level() + 0]);
-      assert(!levels_locked_[c->level() + 1]);
-      levels_locked_[c->level() + 0] = true;
-      levels_locked_[c->level() + 1] = true;
-		}
-#endif
   }
 
   Status status;
 
   if (c == NULL) {
     // Nothing to do
-#if MULTI_COMPACTION
-    // Nothing to do but we should unlock mutex
-    return Status::NotFound("cannot find compaction!");//lemma compaction
-    //mutex_.Unlock();
-    //mutex_.Lock();
-#endif
+    return Status::NotFound("cannot find compaction");
   } else if (!is_manual && c->IsTrivialMove() && c->level() > 0) {
     // Move file to next level
-  	// TODO 모델들 level 업데이트 해야함
     for (size_t i = 0; i < c->num_input_files(0); ++i) {
       FileMetaData* f = c->input(0, i);
       c->edit()->DeleteFile(c->level(), f->number);
       c->edit()->AddFile(c->level() + 1, f->number, f->file_size,
                          f->smallest, f->largest);
-#if LEARN
-			/*auto* model = koo::file_data->GetModelForLookup(f->number);		// 어차피 file number 바뀜
-			if (model != nullptr) model->level = c->level() + 1;*/
-#endif
     }
     status = versions_->LogAndApply(c->edit(), &mutex_, &bg_log_cv_, &bg_log_occupied_);
     mutex_.Unlock();
     current_for_read_.reset(new CurrentForRead(this));
     mutex_.Lock();
-#if MULTI_COMPACTION
 		c->MarkFilesBeingCompacted(false);
 		versions_->UnregisterCompaction(c);
-#endif
     if (!status.ok()) {
       RecordBackgroundError(status);
     }
@@ -1057,23 +992,15 @@ Status DBImpl::BackgroundCompaction() {
       RecordBackgroundError(status);
     }
     CleanupCompaction(compact);
-#if MULTI_COMPACTION
 		c->MarkFilesBeingCompacted(false);
 		versions_->UnregisterCompaction(c);
-#endif
     c->ReleaseInputs();
     DeleteObsoleteFiles();
   }
 
-#if MULTI_COMPACTION
-  bg_compaction_cv_.SignalAll(); //lemma compaction
-#endif
+  bg_compaction_cv_.SignalAll();
 
   if (c) {
-#if !MULTI_COMPACTION
-    levels_locked_[c->level() + 0] = false;
-    levels_locked_[c->level() + 1] = false;
-#endif
     delete c;
   }
 

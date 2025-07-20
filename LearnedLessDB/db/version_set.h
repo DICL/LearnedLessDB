@@ -138,13 +138,11 @@ class Version {
       const InternalKey* begin,         // NULL means before all keys
       const InternalKey* end,           // NULL means after all keys
       std::vector<FileMetaData*>* inputs);
-#if MULTI_COMPACTION
   bool GetOverlappingInputsNotBeingCompacted(
       unsigned level,
       const InternalKey* begin,         // NULL means before all keys
       const InternalKey* end,           // NULL means after all keys
       std::vector<FileMetaData*>* inputs);
-#endif
 
   // Returns true iff some file in the specified level overlaps
   // some part of [*smallest_user_key,*largest_user_key].
@@ -292,7 +290,6 @@ class VersionSet {
   // Pick level for a new compaction.
   // Returns kNumLevels if there is no compaction to be done.
   // Otherwise returns the lowest unlocked level that may compact upwards.
-#if MULTI_COMPACTION
 	void CountNumBeingCompacted(unsigned level, bool sum, size_t num) {
 		if (sum) {
 			num_being_compacted[level] += num;
@@ -303,9 +300,6 @@ class VersionSet {
 	}
 
   unsigned PickCompactionLevel(bool seek_driven) const;
-#else
-  unsigned PickCompactionLevel(bool* locked, bool seek_driven) const;
-#endif
 
   // Pick inputs for a new compaction at the specified level.
   // Returns NULL if there is no compaction to be done.
@@ -334,13 +328,6 @@ class VersionSet {
   Iterator* MakeInputIterator(Compaction* c);
 #endif
 
-  // Returns true iff some level needs a compaction.
-#if !MULTI_COMPACTION
-  bool NeedsCompaction(bool* levels, bool seek_driven) const {
-    return PickCompactionLevel(levels, seek_driven) != config::kNumLevels;
-  }
-#endif
-
   // Add all files listed in any live version to *live.
   // May also mutate some internal state.
   void AddLiveFiles(std::set<uint64_t>* live);
@@ -356,12 +343,10 @@ class VersionSet {
   };
   const char* LevelSummary(LevelSummaryStorage* scratch) const;
 
-#if MULTI_COMPACTION
 	// Register this compaction in the set of running compactions
 	void RegisterCompaction(Compaction* c);
 	// Remove this compaction from the set of running compactions
 	void UnregisterCompaction(Compaction* c);
-#endif
 
  private:
   class Builder;
@@ -391,11 +376,7 @@ class VersionSet {
                                std::vector<uint64_t>* LB_sizes,
                                std::vector<class CompactionBoundary>* boundaries);
 
-#if MULTI_COMPACTION
   bool SetupOtherInputs(Compaction* c);
-#else
-  void SetupOtherInputs(Compaction* c);
-#endif
 
   // Save current contents to *log
   Status WriteSnapshot(log::Writer* log);
@@ -423,13 +404,11 @@ class VersionSet {
   // Either an empty string, or a valid InternalKey.
   std::string compact_pointer_[config::kNumLevels];
 
-#if MULTI_COMPACTION
   // Keeps track of all compactions that are running.
   // Protected by DB mutex
   std::unordered_set<Compaction*> compactions_in_progress_[config::kNumLevels];
 
   int num_being_compacted[config::kNumLevels];
-#endif
 
   // No copying allowed
   VersionSet(const VersionSet&);
@@ -483,10 +462,8 @@ class Compaction {
   // is successful.
   void ReleaseInputs();
 
-#if MULTI_COMPACTION
 	// mark (or clear) all files that are being compacted
 	void MarkFilesBeingCompacted(bool mark_as_compacted);
-#endif
 
  private:
   friend class Version;

@@ -155,9 +155,7 @@ struct Options {
 
   // Create an Options object with default values for all fields.
 
-#if MULTI_COMPACTION
   int num_background_jobs = 9;
-#endif
   Options();
 };
 

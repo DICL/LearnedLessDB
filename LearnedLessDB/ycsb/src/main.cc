@@ -43,9 +43,7 @@ int main(int argc, char* argv[]){
   options.create_if_missing = true;
   //options.filter_policy = nullptr;
 
-#if MULTI_COMPACTION
   options.num_background_jobs = std::stoi(common_props.GetProperty("max_background_jobs"));
-#endif
 	koo::learn_model_error = std::stod(common_props.GetProperty("learned_model_error_bound"));
 	// retraining threshold
 	koo::merge_model_error = std::stod(common_props.GetProperty("merged_model_error_bound"));

@@ -148,11 +148,7 @@ class DBImpl : public DB {
   static void CompactLevelWrapper(void* db)
   { reinterpret_cast<DBImpl*>(db)->CompactLevelThread(); }
   void CompactLevelThread();
-#if MULTI_COMPACTION
   Status BackgroundCompaction(unsigned level) EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-#else
-  Status BackgroundCompaction() EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-#endif
 
   void RecordBackgroundError(const Status& s);
 
@@ -208,9 +204,6 @@ class DBImpl : public DB {
   std::set<uint64_t> pending_outputs_;
 
   bool allow_background_activity_;
-#if !MULTI_COMPACTION
-  bool levels_locked_[leveldb::config::kNumLevels];
-#endif
   int num_bg_threads_;
   bool bg_mem_job_ = true;
   port::CondVar bg_mem_job_cv_;
