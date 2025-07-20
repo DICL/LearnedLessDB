@@ -301,11 +301,7 @@ DBImpl::~DBImpl() {
   }
 	delete koo::file_data;
 	delete koo::learn_cb_model;
-#if BOURBON_PLUS
 	delete koo::file_stats_data;
-#else
-	koo::file_stats.clear();
-#endif
 	delete vlog;
 }
 
@@ -411,7 +407,6 @@ void DBImpl::DeleteObsoleteFiles() {
           table_cache_->Evict(number);
 #if !LEARNING_ALL && !BOURBON_OFFLINE
 					if (!koo::fresh_write) {
-#if BOURBON_PLUS
 						koo::FileStats* file_stat = koo::file_stats_data->GetFileStats(number);
 						if (file_stat != nullptr) {
 							file_stat->Finish();
@@ -420,16 +415,6 @@ void DBImpl::DeleteObsoleteFiles() {
 										file_stat->num_lookup_neg, file_stat->num_lookup_pos, file_stat->size);
 							}
 						}
-#else
-						koo::file_stats_mutex.Lock();
-						auto iter = koo::file_stats.find(number);
-						koo::FileStats& file_stat = iter->second;
-						file_stat.Finish();
-						if (file_stat.end - file_stat.start >= koo::learn_trigger_time) {
-							koo::learn_cb_model->AddFileData(file_stat.level, file_stat.num_lookup_neg, file_stat.num_lookup_pos, file_stat.size);
-						}
-						koo::file_stats_mutex.Unlock();
-#endif
 					}
 #endif
         }
@@ -437,11 +422,9 @@ void DBImpl::DeleteObsoleteFiles() {
             int(type),
             static_cast<unsigned long long>(number));
         env_->DeleteFile(dbname_ + "/" + filenames[i]);
-//#if BOURBON_PLUS
-				if (type == kTableFile) {			// TODO
+				if (type == kTableFile) {	
 					koo::file_data->DeleteModel(number);
 				}
-//#endif
       }
     }
   }
@@ -679,14 +662,7 @@ Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
                   meta.smallest, meta.largest);
 #if !LEARNING_ALL && !BOURBON_OFFLINE
 		if (!koo::fresh_write) {
-#if BOURBON_PLUS
 			koo::file_stats_data->InsertFileStats(meta.number, level, meta.file_size);
-#else
-			koo::file_stats_mutex.Lock();
-			assert(koo::file_stats.find(meta.number) == koo::file_stats.end());
-			koo::file_stats.insert({meta.number, koo::FileStats(level, meta.file_size)});
-			koo::file_stats_mutex.Unlock();
-#endif
 		}
 #endif
   }
@@ -975,7 +951,6 @@ Status DBImpl::BackgroundCompaction(unsigned level) {
 		versions_->UnregisterCompaction(c);
 #if !LEARNING_ALL && !BOURBON_OFFLINE
 		if (!koo::fresh_write) {
-#if BOURBON_PLUS
 	    for (size_t i = 0; i < c->num_input_files(0); ++i) {
 			  FileMetaData* f = c->input(0, i);
 				koo::FileStats* file_stat = koo::file_stats_data->GetFileStats(f->number);
@@ -984,18 +959,6 @@ Status DBImpl::BackgroundCompaction(unsigned level) {
 					file_stat->level += 1;
 				}
 			}
-#else
-			koo::file_stats_mutex.Lock();
-	    for (size_t i = 0; i < c->num_input_files(0); ++i) {
-			  FileMetaData* f = c->input(0, i);
-				auto iter = koo::file_stats.find(f->number);
-				if (iter != koo::file_stats.end()) {
-					assert(iter->second.level == c->level());
-					iter->second.level += 1;
-				}
-			}
-			koo::file_stats_mutex.Unlock();
-#endif
 		}
 #endif
     if (!status.ok()) {
@@ -1135,15 +1098,8 @@ Status DBImpl::FinishCompactionOutputFile(CompactionState* compact,
 
 #if !LEARNING_ALL && !BOURBON_OFFLINE
 	if (!koo::fresh_write) {
-#if BOURBON_PLUS
 		koo::file_stats_data->InsertFileStats(output_number, 
 				compact->compaction->level()+1, current_bytes);
-#else
-		koo::file_stats_mutex.Lock();
-		assert(koo::file_stats.find(output_number) == koo::file_stats.end());
-		koo::file_stats.insert({output_number, koo::FileStats(compact->compaction->level() + 1, current_bytes)});
-		koo::file_stats_mutex.Unlock();
-#endif
 	}
 #endif
 #if !BOURBON_OFFLINE
@@ -2055,9 +2011,7 @@ Status DB::Open(const Options& options, const std::string& dbname,
 	koo::learn_cb_model = new CBModel_Learn();
 	koo::Stats* instance = koo::Stats::GetInstance();
 	instance->ResetAll();
-#if BOURBON_PLUS
 	koo::file_stats_data = new koo::FileStatsData();
-#endif
 	options.env->SetPrepareDeleteOff();
 
   DBImpl* impl = new DBImpl(options, dbname);

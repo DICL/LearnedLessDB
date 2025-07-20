@@ -25,9 +25,7 @@ namespace koo {
 	class FileLearnedIndexData;
 	class LearnedIndexData;
 	class FileStats;
-#if BOURBON_PLUS
 	class FileStatsData;
-#endif
 
 	extern int MOD;
 	extern uint32_t level_model_error;
@@ -51,12 +49,7 @@ namespace koo {
 	extern int level_allowed_seek;
 	extern int file_allowed_seek;
 
-#if BOURBON_PLUS
 	extern FileStatsData* file_stats_data;
-#else
-	extern leveldb::port::Mutex file_stats_mutex;
-	extern map<int, FileStats> file_stats;
-#endif
 
 	uint64_t SliceToInteger(const Slice& slice);
 
@@ -65,27 +58,16 @@ namespace koo {
   public:
     uint64_t start;
     uint64_t end;
-#if BOURBON_PLUS
     std::atomic<int> level;
     std::atomic<uint32_t> num_lookup_neg;
     std::atomic<uint32_t> num_lookup_pos;
     std::atomic<uint64_t> size;
-#else
-    int level;
-    uint32_t num_lookup_neg;
-    uint32_t num_lookup_pos;
-    uint64_t size;
-#endif
 
-#if BOURBON_PLUS
     explicit FileStats(int level_, uint64_t size_) : start(0), end(0) {
     	level.store(level_);
     	num_lookup_pos.store(0);
     	num_lookup_neg.store(0);
     	size.store(size_);
-#else
-    explicit FileStats(int level_, uint64_t size_) : start(0), end(0), level(level_), num_lookup_pos(0), num_lookup_neg(0), size(size_) {
-#endif
       koo::Stats* instance = koo::Stats::GetInstance();
       uint32_t dummy;
       start = (__rdtscp(&dummy) - instance->initial_time) / koo::reference_frequency;
@@ -99,7 +81,6 @@ namespace koo {
 
   };
 
-#if BOURBON_PLUS
 	class FileStatsData {
 		public:
 			//leveldb::port::Mutex mutex;
@@ -162,7 +143,6 @@ namespace koo {
 				}
 			}
 	};
-#endif
 
 
 }

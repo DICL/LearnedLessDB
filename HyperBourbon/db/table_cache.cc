@@ -116,14 +116,9 @@ Status TableCache::Get(const ReadOptions& options, uint64_t file_number,
   Cache::Handle* handle = NULL;
   koo::Stats* instance = koo::Stats::GetInstance();
 
-#if BOURBON_PLUS
 	koo::LearnedIndexData* model_ = koo::file_data->GetModelForLookup(meta->number);
 	if (model_ != nullptr) {
 		*model = model_;
-#else
-  	*model = koo::file_data->GetModel(meta->number);
-  	assert(file_learned != nullptr);
-#endif
   	*file_learned = (*model)->Learned();
 
   	if (learned || *file_learned) {
@@ -131,9 +126,7 @@ Status TableCache::Get(const ReadOptions& options, uint64_t file_number,
 								meta, lower, upper, learned, version);
 			return Status::OK();
 		}
-#if BOURBON_PLUS
 	}
-#endif
 
   Status s = FindTable(file_number, file_size, &handle);
   if (s.ok()) {

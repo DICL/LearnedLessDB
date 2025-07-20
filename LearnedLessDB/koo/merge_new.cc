@@ -13,12 +13,9 @@ namespace koo {
 
 Segment MergeModel::MakeSegment(uint64_t x, double y,
 																uint64_t x_last, double y_last) {
-	//if (y >= y_last) assert("MergeModel::MakeSegment y >= y_last");
 	uint64_t x_delta = x_last - x;
 	double y_delta = y_last - y;
 	if (y_delta <= 0) { 
-		//std::cout << __LINE__ << ": y_delta <= 0   y_delta = " << y_delta << ", y = " << y << ", y_last = " << y_last; 
-		//std::cout << ", file_numer = " << file_number << std::endl;
 		y_delta = 1; 
 	}
 	if (x_delta+1 < y_delta) y_delta = x_delta + 1;
@@ -40,9 +37,6 @@ bool MergeModel::Merge() {
 
 	bool pass = false;
 	for (int i=0; i<seg_infos_size-1; i++) {
-		/*if (i) x = seg_infos[i].x;
-		uint64_t x_last = seg_infos[i].x_last;
-		uint32_t num_keys = seg_infos[i].num_keys;*/
 		uint64_t x_last = seg_infos[i].first;
 		uint32_t num_keys = seg_infos[i].second;
 		if (end_key < x_last) {
@@ -52,8 +46,7 @@ bool MergeModel::Merge() {
 		}
 
 		y_last += num_keys;
-		//if (num_keys < SKIP_SEG) continue;		// default
-		if (y_last - y < SKIP_SEG) continue;
+		if (y_last - y < koo::min_num_keys) continue;
 
 		segs_output.push_back(MakeSegment(x, y, x_last, y_last));
 		x = x_last + 1;
@@ -63,7 +56,6 @@ bool MergeModel::Merge() {
 
 	// Attah last segment
 	if (!segs_output.size()) {
-		std::cout << "!!!!!!!!!!!!!!!ERROR 11 " << file_number << std::endl;
 		return false;
 	}
 	if (!(segs_output.back().k == 0 && segs_output.back().b == 0))

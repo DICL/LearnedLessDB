@@ -18,16 +18,11 @@
 #include <mutex>
 #include <condition_variable>
 
-#define YCSB_WRAPPER 1		// produce requests before run workloads + skip writing latency files
-#define YCSB_COPYDB 1			// SpanDB ycsb load 외 워크로드 전 db copy -> copy한 db에서 워크로드 실험
-#define YCSB_SOSD 0		// records=600M
-
+#define YCSB_COPYDB 1
+#define YCSB_SOSD 0
 #define NORMARLIZE_KEY 0		// key - min_key. 선분 k, b만
 
-#define SKIP_SEG 30			// default. merge_new.cc
-
 #define MODEL_COMPACTION 1		// compaction using merged models
-
 #define RETRAIN 1
 #define RETRAIN2 1						// 재학습 대신 error bound 확장
 #define RETRAIN3 1						// 재학습하는 파일은 우선순위 낮게
@@ -37,6 +32,7 @@ namespace koo {
 extern std::string model_dbname;
 extern double learn_model_error;
 extern double merge_model_error;
+extern uint64_t min_num_keys;
 
 class SpinLock {
  public:

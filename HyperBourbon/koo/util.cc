@@ -28,12 +28,7 @@ namespace koo {
 	int level_allowed_seek = 1;
 	int file_allowed_seek = 10;
 
-#if BOURBON_PLUS
 	FileStatsData* file_stats_data = nullptr;
-#else
-	leveldb::port::Mutex file_stats_mutex;
-	map<int, FileStats> file_stats;
-#endif
 
   uint64_t SliceToInteger(const Slice& slice) {
     const char* data = slice.data();

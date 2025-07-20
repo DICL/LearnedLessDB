@@ -34,10 +34,6 @@ int main(int argc, char* argv[]){
     workloads.push_back(wl);
   }
 
-  // dbpath
-  std::string dbpath("/mnt-koo");
-  std::string data_dir = dbpath + "/db";
-
   // db options
 	leveldb::Options options;
   options.create_if_missing = true;
@@ -46,6 +42,10 @@ int main(int argc, char* argv[]){
   options.num_background_jobs = std::stoi(common_props.GetProperty("max_background_jobs"));
 	koo::learn_model_error = std::stod(common_props.GetProperty("learned_model_error_bound"));
 	koo::merge_model_error = std::stod(common_props.GetProperty("merged_model_error_bound"));
+
+	std::string data_dir = common_props.GetProperty("db_path");
+  //std::string dbpath("/mnt-koo");
+  //std::string data_dir = dbpath + "/db";
 
   // Copy DB
 #if YCSB_COPYDB

@@ -71,7 +71,6 @@ inline void DeallocBuffer(void *buffer, size_t capacity){
     assert(munmap(buffer, capacity) == 0);
 }
 
-#if YCSB_WRAPPER
 		static std::string GetDayTime(){
 			const int kBufferSize = 100;
 			char buffer[kBufferSize];
@@ -91,22 +90,18 @@ inline void DeallocBuffer(void *buffer, size_t capacity){
 		            static_cast<int>(now_tv.tv_usec));
 			return std::string(buffer);
 		}
-#endif
 
 class RocksDBClient{
  public:
-#if YCSB_WRAPPER
   RocksDBClient(WorkloadProxy* workload_proxy, int num_threads,
                 leveldb::Options options,
                 std::string data_dir,
                 leveldb::DB* db,
                 WorkloadWrapper* workload_wrapper = nullptr);
-#else
-  RocksDBClient(WorkloadProxy* workload_proxy, int num_threads,
+  /*RocksDBClient(WorkloadProxy* workload_proxy, int num_threads,
                 leveldb::Options options,
                 std::string data_dir,
-                leveldb::DB* db);
-#endif
+                leveldb::DB* db);*/
 		~RocksDBClient();
     void run();
 		void Load();
@@ -209,19 +204,17 @@ class RocksDBClient{
       }
 		};
 
-#if !YCSB_WRAPPER
-		TimeRecord *request_time_  = nullptr;
+		/*TimeRecord *request_time_  = nullptr;
 		TimeRecord *read_time_  = nullptr;
 		TimeRecord *update_time_ = nullptr;
 		TimeRecord *iops_ = nullptr;
-		TimeRecord *insert_failed_ = nullptr;
+		TimeRecord *insert_failed_ = nullptr;*/
 		//std::atomic<uint64_t> total_finished_requests_;
 		//std::atomic<uint64_t> total_write_latency;
 		//std::atomic<uint64_t> total_read_latency;
 		//std::atomic<uint64_t> write_finished;
 		//std::atomic<uint64_t> read_finished;
 
-#endif
     //thread_data* td_[80];
     //std::atomic<bool> stop_;
 

@@ -20,41 +20,41 @@ cmake --build . -- -j
 cd -
 ycsb=../build/ycsb
 
+num_threads=32
 num_bg=8
 learned_error_bound=8
 merged_error_bound=21
+db_path="/mnt-koo/db"
 
-for num_threads in 32; do
+rm -rf ${db_path}/*
 
-		rm -rf /mnt-koo/db/*
+sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
+$ycsb \
+	--recordcount=${recordcount} \
+	--operationcount=${operationcount} \
+	--fieldlength=${field_len} \
+	--fieldcount=${field_cnt} \
+	--threads=${num_threads} \
+	--workloads="l" \
+	--max_background_jobs=$(( num_bg + 1 )) \
+	--distribution=${req_dist} \
+	--learned_model_error_bound=${learned_error_bound} \
+	--merged_model_error_bound=${merged_error_bound} \
+	--db_path=${db_path}
 
-		sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
-		$ycsb \
+for wl in a c; do
+	sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
+	$ycsb \
 		--recordcount=${recordcount} \
 		--operationcount=${operationcount} \
 		--fieldlength=${field_len} \
 		--fieldcount=${field_cnt} \
 		--threads=${num_threads} \
-		--workloads="l" \
+		--workloads=${wl} \
 		--max_background_jobs=$(( num_bg + 1 )) \
 		--distribution=${req_dist} \
 		--learned_model_error_bound=${learned_error_bound} \
-		--merged_model_error_bound=${merged_error_bound}
-
-		for wl in a c; do
-			sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
-			$ycsb \
-			--recordcount=${recordcount} \
-			--operationcount=${operationcount} \
-			--fieldlength=${field_len} \
-			--fieldcount=${field_cnt} \
-			--threads=${num_threads} \
-			--workloads=${wl} \
-			--max_background_jobs=$(( num_bg + 1 )) \
-			--distribution=${req_dist} \
-			--learned_model_error_bound=${learned_error_bound} \
-			--merged_model_error_bound=${merged_error_bound}
-		done
-
+		--merged_model_error_bound=${merged_error_bound} \
+		--db_path=${db_path}
 done
 

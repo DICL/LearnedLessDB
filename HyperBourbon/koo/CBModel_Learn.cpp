@@ -8,17 +8,11 @@
 CBModel_Learn::CBModel_Learn() : negative_lookups_time(2), positive_lookups_time(2) {};
 
 void CBModel_Learn::AddLookupData(int level, bool positive, bool model, uint64_t value) {
-#if !BOURBON_PLUS
-    leveldb::MutexLock guard(&lookup_mutex);
-#endif
     std::vector<Counter>& target = positive ? positive_lookups_time : negative_lookups_time;
     target[model].Increment(level, value);
 }
 
 void CBModel_Learn::AddFileData(int level, uint64_t num_negative, uint64_t num_positive, uint64_t size) {
-#if !BOURBON_PLUS
-    leveldb::MutexLock guard(&file_mutex);
-#endif
     num_negative_lookups_file.Increment(level, num_negative);
     num_positive_lookups_file.Increment(level, num_positive);
     file_sizes.Increment(level, size);
@@ -36,11 +30,7 @@ double CBModel_Learn::CalculateCB(int level, uint64_t file_size) {
     int num_pos[2] = {0, 0}, num_neg[2] = {0, 0}, num_files = 0, num_learn = 0;
     uint64_t time_pos[2] = {0, 0}, time_neg[2] = {0, 0}, num_neg_lookups_file, num_pos_lookups_file, size_sum, cost_sum, learn_size_sum;
     {
-#if !BOURBON_PLUS
-        leveldb::MutexLock guard(&lookup_mutex);
-#endif
         for (int i = 0; i < 2; ++i) {
-#if BOURBON_PLUS
         	if (level == 0) {
             num_pos[i] = positive_lookups_time[i].num0;
             num_neg[i] = negative_lookups_time[i].num0;
@@ -77,16 +67,9 @@ double CBModel_Learn::CalculateCB(int level, uint64_t file_size) {
             time_pos[i] = positive_lookups_time[i].count6;
             time_neg[i] = negative_lookups_time[i].count6;
 					}
-#else
-            num_pos[i] = positive_lookups_time[i].nums[level];
-            num_neg[i] = negative_lookups_time[i].nums[level];
-            time_pos[i] = positive_lookups_time[i].counts[level];
-            time_neg[i] = negative_lookups_time[i].counts[level];
-#endif
         }
     }
     {
-#if BOURBON_PLUS
 			if (level == 0) {
         num_files = num_negative_lookups_file.num0;
         num_neg_lookups_file = num_negative_lookups_file.count0;
@@ -123,13 +106,6 @@ double CBModel_Learn::CalculateCB(int level, uint64_t file_size) {
         num_pos_lookups_file = num_positive_lookups_file.count6;
         size_sum = file_sizes.count6;
 			}
-#else
-        leveldb::MutexLock guard(&file_mutex);
-        num_files = num_negative_lookups_file.nums[level];
-        num_neg_lookups_file = num_negative_lookups_file.counts[level];
-        num_pos_lookups_file = num_positive_lookups_file.counts[level];
-        size_sum = file_sizes.counts[level];
-#endif
     }
 //    num_learn = learn_costs.nums[level];
 //    cost_sum = learn_costs.counts[level];
@@ -177,17 +153,6 @@ double CBModel_Learn::CalculateCB(int level, uint64_t file_size) {
 
 
 void CBModel_Learn::Report() {
-#if !BOURBON_PLUS
-    negative_lookups_time[0].name = "BaselineNegative";
-    negative_lookups_time[1].name = "LLSMNegative";
-    positive_lookups_time[0].name = "BaselinePositive";
-    positive_lookups_time[1].name = "LLSMPositive";
-
-    negative_lookups_time[0].Report();
-    negative_lookups_time[1].Report();
-    positive_lookups_time[0].Report();
-    positive_lookups_time[1].Report();
-#endif
 }
 
 

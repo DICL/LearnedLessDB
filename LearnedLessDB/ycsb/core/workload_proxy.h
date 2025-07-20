@@ -1,5 +1,4 @@
 #include "core_workload.h"
-#include "koo/koo.h"
 
 namespace ycsbc{
 
@@ -10,10 +9,8 @@ class WorkloadProxy{
 	public:
 		WorkloadProxy(CoreWorkload *wl)
 			:workload_(wl){
-#if YCSB_WRAPPER
 			read_proportion = wl->read_proportion;
 			update_proportion = wl->update_proportion;
-#endif
 		}
 
 		~WorkloadProxy(){
@@ -37,10 +34,8 @@ class WorkloadProxy{
       value_len = workload_->field_count() * workload_->field_len();
 		}
 
-#if YCSB_WRAPPER
 		double read_proportion;
 		double update_proportion;
-#endif
 
 		Operation GetNextOperation(){
 			return workload_->NextOperation();

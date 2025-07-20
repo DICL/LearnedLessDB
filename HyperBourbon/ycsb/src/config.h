@@ -58,24 +58,6 @@ utils::Properties gen_workload_props(const char wl_char, const utils::Properties
       wp.SetProperty("workloadname", "Workload F");
       break;
     }
-#if YCSB_WRAPPER
-		case 'u': {
-      wp.SetProperty("readproportion", "0.1"); 
-      wp.SetProperty("updateproportion", "0.9");
-      wp.SetProperty("scanproportion", "0"); 
-      wp.SetProperty("insertproportion", "0");
-      wp.SetProperty("workloadname", "Workload U");
-      break;
-		}
-		case 'r': {
-      wp.SetProperty("readproportion", "0.9"); 
-      wp.SetProperty("updateproportion", "0.1");
-      wp.SetProperty("scanproportion", "0"); 
-      wp.SetProperty("insertproportion", "0");
-      wp.SetProperty("workloadname", "Workload R");
-      break;
-		}
-#endif
 #if YCSB_SOSD
     case 'x': {		// read-heavy
       wp.SetProperty("readproportion", "0.9"); 
@@ -125,6 +107,7 @@ void set_default_props(utils::Properties* props) {
   props->SetProperty("max_background_jobs", "2");
   props->SetProperty("max_learning_jobs", "1");
   props->SetProperty("learned_model_error_bound", "8");
+  props->SetProperty("db_path", "/mnt-koo/db");
 }
 
 void parse_command_line_arguments(int argc, char* argv[], utils::Properties* props, std::vector<char>* wl_chars) {
@@ -145,6 +128,7 @@ void parse_command_line_arguments(int argc, char* argv[], utils::Properties* pro
     { "max_background_jobs", required_argument, 0, 0 },
     { "max_learning_jobs", required_argument, 0, 0 }, 
     { "learned_model_error_bound", required_argument, 0, 0 }, 
+    { "db_path", required_argument, 0, 0 }, 
     { 0, 0, 0, 0 }
   };
   const static char* optstring = "n:t:w:d:";

@@ -491,38 +491,20 @@ Status Version::Get(const ReadOptions& options,
         case kNotFound:
 #if !LEARNING_ALL && !BOURBON_OFFLINE
 					if (!koo::fresh_write) {
-#if BOURBON_PLUS
 						koo::FileStats* file_stat = koo::file_stats_data->GetFileStats(f->number);
 						if (file_stat != nullptr) {
 							file_stat->num_lookup_neg += 1;
 						}
-#else
-						koo::file_stats_mutex.Lock();
-						auto iter = koo::file_stats.find(f->number);
-						if (iter != koo::file_stats.end()) {
-							iter->second.num_lookup_neg += 1;
-						}
-						koo::file_stats_mutex.Unlock();
-#endif
 					}
 #endif
           break;      // Keep searching in other files
         case kFound:
 #if !LEARNING_ALL && !BOURBON_OFFLINE
 					if (!koo::fresh_write) {
-#if BOURBON_PLUS
 						koo::FileStats* file_stat = koo::file_stats_data->GetFileStats(f->number);
 						if (file_stat != nullptr) {
 							file_stat->num_lookup_pos += 1;
 						}
-#else
-						koo::file_stats_mutex.Lock();
-						auto iter = koo::file_stats.find(f->number);
-						if (iter != koo::file_stats.end()) {
-							iter->second.num_lookup_pos += 1;
-						}
-						koo::file_stats_mutex.Unlock();
-#endif
 					}
 #endif
           return s;

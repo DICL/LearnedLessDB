@@ -151,14 +151,12 @@ uint64_t LearnedIndexData::FileLearn(void* arg) {
     self->cost = time.second - time.first;
   }
 
-#if BOURBON_PLUS
 	self->string_keys.clear();
 	self->string_keys.shrink_to_fit();
 	if (self->Deleted()) {
 		self->string_segments.clear();
 		self->string_segments.shrink_to_fit();
 	}
-#endif
   if (!fresh_write) delete mas->meta;
   delete mas;
   return entered ? 1 : 0;
@@ -206,11 +204,7 @@ bool LearnedIndexData::FillData(Version* version, FileMetaData* meta) {
 }
 
 void LearnedIndexData::WriteModel(const string& filename) {
-#if BOURBON_PLUS
   if (Deleted() || !learned.load()) return;
-#else
-  if (!learned.load()) return;
-#endif
 	std::ofstream ofs(filename, std::ios::binary);
 	ofs.write(reinterpret_cast<const char*>(&koo::block_num_entries), sizeof(uint64_t));
 	ofs.write(reinterpret_cast<const char*>(&koo::block_size), sizeof(uint64_t));
@@ -330,7 +324,6 @@ void LearnedIndexData::FillCBAStat(bool positive, bool model, uint64_t time) {
 }
 
 LearnedIndexData* FileLearnedIndexData::GetModel(int number) {
-#if BOURBON_PLUS
   if (file_learned_index_data.size() <= number) {
   	rw_lock_.LockWrite();
 		if (file_learned_index_data.size() <= number) {
@@ -351,17 +344,8 @@ LearnedIndexData* FileLearnedIndexData::GetModel(int number) {
 		rw_lock_.UnlockWrite();
 	}
 	return file_learned_index_data[number];
-#else
-  leveldb::MutexLock l(&mutex);
-  if (file_learned_index_data.size() <= number)
-    file_learned_index_data.resize(number + 1, nullptr);
-  if (file_learned_index_data[number] == nullptr)
-    file_learned_index_data[number] = new LearnedIndexData(file_allowed_seek, false, number);
-  return file_learned_index_data[number];
-#endif
 }
 
-#if BOURBON_PLUS
 LearnedIndexData* FileLearnedIndexData::GetModelForLookup(int number) {
 	rw_lock_.LockRead();
   if (file_learned_index_data.size() <= number) {
@@ -375,7 +359,6 @@ LearnedIndexData* FileLearnedIndexData::GetModelForLookup(int number) {
   rw_lock_.UnlockRead();
   return file_learned_index_data[number];
 }
-#endif
 
 bool FileLearnedIndexData::FillData(Version* version, FileMetaData* meta) {
   LearnedIndexData* model = GetModel(meta->number);
@@ -405,17 +388,11 @@ std::pair<uint64_t, uint64_t> FileLearnedIndexData::GetPosition(
 }
 
 FileLearnedIndexData::~FileLearnedIndexData() {
-#if BOURBON_PLUS
 	rw_lock_.LockWrite();
-#else
-  leveldb::MutexLock l(&mutex);
-#endif
   for (auto pointer : file_learned_index_data) {
 		if (pointer != nullptr) delete pointer;
   }
-#if BOURBON_PLUS
 	rw_lock_.UnlockWrite();
-#endif
 }
 
 void FileLearnedIndexData::Report() {

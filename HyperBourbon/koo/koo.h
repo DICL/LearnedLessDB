@@ -16,12 +16,9 @@
 #include <mutex>
 #include <condition_variable>
 
-#define BOURBON_PLUS 1				// HyperBourbon(CBA)
+#define LEARNING_ALL 0				// HyperBourbon(Always)
+#define BOURBON_OFFLINE 0			// HyperWiscKey
 
-#define LEARNING_ALL 0				// HyperBourbon(Always) (BOURBON_PLUS must be on)
-#define BOURBON_OFFLINE 0			// HyperWiscKey (BOURBON_PLUS must be on)
-
-#define YCSB_WRAPPER 1		// produce requests before run workloads + skip writing latency files
 #define YCSB_COPYDB 1		// SpanDB ycsb load 외 워크로드 전 db copy -> copy한 db에서 워크로드 실행
 #define YCSB_SOSD 0
 

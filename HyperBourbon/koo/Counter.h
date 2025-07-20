@@ -13,7 +13,6 @@
 class Counter {
     friend class CBModel_Learn;
 private:
-#if BOURBON_PLUS
 	std::atomic<uint64_t> count0;
 	std::atomic<uint64_t> count1;
 	std::atomic<uint64_t> count2;
@@ -28,27 +27,14 @@ private:
 	std::atomic<uint64_t> num4;
 	std::atomic<uint64_t> num5;
 	std::atomic<uint64_t> num6;
-#else
-    std::vector<uint64_t> counts;
-    std::vector<uint64_t> nums;
-#endif
 public:
     std::string name;
 
-#if BOURBON_PLUS
 	Counter() : 
 		count0(0), count1(0), count2(0), count3(0), count4(0), count5(0), count6(0),
 		num0(0), num1(0), num2(0), num3(0), num4(0), num5(0), num6(0) {};
-#else
-    Counter() : counts(leveldb::config::kNumLevels + 1, 0), nums(leveldb::config::kNumLevels + 1, 0) {};
-#endif
     void Increment(int level, uint64_t n = 1);
     void Reset();
-#if !BOURBON_PLUS
-    void Report();
-    int Sum();
-    int NumSum();
-#endif
 
 };
 

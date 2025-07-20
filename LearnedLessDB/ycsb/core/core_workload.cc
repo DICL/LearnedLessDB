@@ -87,17 +87,14 @@ void CoreWorkload::Init(const utils::Properties &p, const bool is_load) {
                                        FIELD_LENGTH_DEFAULT));
   field_len_generator_ = GetFieldLenGenerator(p);
   
-#if YCSB_WRAPPER
   read_proportion = std::stod(p.GetProperty(READ_PROPORTION_PROPERTY,
                                                    READ_PROPORTION_DEFAULT));
   update_proportion = std::stod(p.GetProperty(UPDATE_PROPORTION_PROPERTY,
                                                      UPDATE_PROPORTION_DEFAULT));
-#else
-  double read_proportion = std::stod(p.GetProperty(READ_PROPORTION_PROPERTY,
+  /*double read_proportion = std::stod(p.GetProperty(READ_PROPORTION_PROPERTY,
                                                    READ_PROPORTION_DEFAULT));
   double update_proportion = std::stod(p.GetProperty(UPDATE_PROPORTION_PROPERTY,
-                                                     UPDATE_PROPORTION_DEFAULT));
-#endif
+                                                     UPDATE_PROPORTION_DEFAULT));*/
   double insert_proportion = std::stod(p.GetProperty(INSERT_PROPORTION_PROPERTY,
                                                      INSERT_PROPORTION_DEFAULT));
   double scan_proportion = std::stod(p.GetProperty(SCAN_PROPORTION_PROPERTY,

@@ -193,10 +193,8 @@ class CoreWorkload {
     if (scan_len_chooser_) delete scan_len_chooser_;
   }
 
-#if YCSB_WRAPPER
 	double read_proportion = 0.0;
 	double update_proportion = 0.0;
-#endif
   
  protected:
   static Generator<uint64_t> *GetFieldLenGenerator(const utils::Properties &p);

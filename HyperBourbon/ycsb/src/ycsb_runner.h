@@ -51,7 +51,6 @@ void YCSBRunner::run_all() {
     rocksdb_client.run();
   }*/
   int size = workloads_.size();
-#if YCSB_WRAPPER
   std::vector<WorkloadProxy> wps;
   std::vector<WorkloadWrapper*> wrappers;
   for (int i=0; i<size; i++) {
@@ -139,13 +138,11 @@ void YCSBRunner::run_all() {
 #if YCSB_COPYDB
 	return db_;
 #endif
-#else		// YCSB_WRAPPER
-  for (int i=0; i<size; i++) {
+  /*for (int i=0; i<size; i++) {
     WorkloadProxy wp(workloads_[i]);
     RocksDBClient rocksdb_client(&wp, num_threads_, options_, data_dir_, db_);
     rocksdb_client.run();
-  }
-#endif
+  }*/
 
 }
 }  // namespace ycsbc

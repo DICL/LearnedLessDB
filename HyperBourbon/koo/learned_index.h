@@ -163,11 +163,7 @@ namespace koo {
     // an array storing all file models and provide similar access interface with multithread protection
     class FileLearnedIndexData {
     private:
-#if BOURBON_PLUS
 				koo::RWLock rw_lock_;
-#else
-        leveldb::port::Mutex mutex;
-#endif
         std::vector<LearnedIndexData*> file_learned_index_data;
     public:
         uint64_t watermark;
@@ -179,9 +175,7 @@ namespace koo {
         std::pair<uint64_t, uint64_t> GetPosition(const Slice& key, int file_num);
         AccumulatedNumEntriesArray* GetAccumulatedArray(int file_num);
         LearnedIndexData* GetModel(int number);
-#if BOURBON_PLUS
         LearnedIndexData* GetModelForLookup(int number);
-#endif
 				void DeleteModel(int number);
         void Report();
         ~FileLearnedIndexData();
