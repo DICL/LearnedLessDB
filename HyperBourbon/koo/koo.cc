@@ -7,6 +7,7 @@ namespace koo {
 
 std::string model_dbname = "/models";
 double learn_model_error = 8;
+int mod = 0;
 
 std::condition_variable cv;
 std::mutex cv_mtx;

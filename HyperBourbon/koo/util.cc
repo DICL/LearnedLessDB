@@ -6,7 +6,7 @@
 namespace koo {
 
 
-	int MOD = 7;
+	//int MOD = 7;
 	uint32_t level_model_error = 1;
 
 	FileLearnedIndexData* file_data = nullptr;

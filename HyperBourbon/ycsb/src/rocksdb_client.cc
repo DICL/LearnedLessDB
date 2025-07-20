@@ -161,12 +161,12 @@ void RocksDBClient::Work(){
   //stop_.store(true);
   //if (perfmon_thread.joinable()) perfmon_thread.join();
 
-	/*std::string stat_str2;
+	std::string stat_str2;
 	db_->GetProperty("leveldb.stats", &stat_str2);
 	printf("\n%s\n", stat_str2.c_str());
 	fflush(stdout);
 
-	assert(request_time_->Size() == request_num_);*/
+	//assert(request_time_->Size() == request_num_);
 	printf("==================================================================\n");
 	/*PrintArgs();
 	printf("WAL sync time per request: %.3lf us\n", wal_time_/request_num_);

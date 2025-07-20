@@ -428,25 +428,22 @@ Status Version::Get(const ReadOptions& options,
       files = &tmp[0];
       num_files = tmp.size();
     } else {
-    	if (koo::MOD == 9) {
-			} else {
-		    // Binary search to find earliest index whose largest key >= ikey.
-			  uint32_t index = FindFile(vset_->icmp_, files_[level], ikey);
-				if (index >= num_files) {
-					files = NULL;
+		  // Binary search to find earliest index whose largest key >= ikey.
+		  uint32_t index = FindFile(vset_->icmp_, files_[level], ikey);
+			if (index >= num_files) {
+				files = NULL;
+				num_files = 0;
+	    } else {
+			  tmp2 = files[index];
+			  if (ucmp->Compare(user_key, tmp2->smallest.user_key()) < 0) {
+				  // All of "tmp2" is past any data for user_key
+	        files = NULL;
 	        num_files = 0;
 		    } else {
-			    tmp2 = files[index];
-				  if (ucmp->Compare(user_key, tmp2->smallest.user_key()) < 0) {
-					  // All of "tmp2" is past any data for user_key
-	          files = NULL;
-		        num_files = 0;
-			    } else {
-				    files = &tmp2;
-					  num_files = 1;
-	        }
-				}
-      }
+			    files = &tmp2;
+				  num_files = 1;
+	      }
+			}
     }
 
 		instance->PauseTimer(time_started, 0);
@@ -470,43 +467,33 @@ Status Version::Get(const ReadOptions& options,
 			koo::LearnedIndexData* model = nullptr;
 			bool file_learned = false;
 			uint64_t time_started2 = instance->StartTimer(6);
-			if (koo::MOD == 0 || koo::MOD == 8) {
-				s = vset_->table_cache_->Get(options, f->number, f->file_size,
-					                           ikey, &saver, SaveValue, level, f);
-			} else {
-				s = vset_->table_cache_->Get(options, f->number, f->file_size,
-					                           ikey, &saver, SaveValue, level, f,
-					                           position_lower, position_upper, false,
-					                           this, &model, &file_learned);
-			}
+			s = vset_->table_cache_->Get(options, f->number, f->file_size,
+				                           ikey, &saver, SaveValue, level, f,
+				                           position_lower, position_upper, false,
+				                           this, &model, &file_learned);
 			auto temp = instance->PauseTimer(time_started2, 6, true);
       if (!s.ok()) {
         return s;
       }
 
-#if !LEARNING_ALL && !BOURBON_OFFLINE
-			koo::learn_cb_model->AddLookupData(level, saver.state == kFound, file_learned, temp.second - temp.first);
-#endif
+			if (koo::mod == 0)
+				koo::learn_cb_model->AddLookupData(level, saver.state == kFound, file_learned, temp.second - temp.first);
       switch (saver.state) {
         case kNotFound:
-#if !LEARNING_ALL && !BOURBON_OFFLINE
-					if (!koo::fresh_write) {
+					if (koo::mod == 0) {
 						koo::FileStats* file_stat = koo::file_stats_data->GetFileStats(f->number);
 						if (file_stat != nullptr) {
 							file_stat->num_lookup_neg += 1;
 						}
 					}
-#endif
           break;      // Keep searching in other files
         case kFound:
-#if !LEARNING_ALL && !BOURBON_OFFLINE
-					if (!koo::fresh_write) {
+					if (koo::mod == 0) {
 						koo::FileStats* file_stat = koo::file_stats_data->GetFileStats(f->number);
 						if (file_stat != nullptr) {
 							file_stat->num_lookup_pos += 1;
 						}
 					}
-#endif
           return s;
         case kDeleted:
           s = Status::NotFound(Slice());  // Use empty error message for speed
@@ -909,9 +896,8 @@ VersionSet::VersionSet(const std::string& dbname,
 }
 
 VersionSet::~VersionSet() {
-#if !BOURBON_OFFLINE
-	current_->WriteModel();
-#endif
+	if (koo::mod == 0 || koo::mod == 1)
+		current_->WriteModel();
   current_->Unref();
   assert(dummy_versions_.next_ == &dummy_versions_);  // List must be empty
   delete descriptor_log_;

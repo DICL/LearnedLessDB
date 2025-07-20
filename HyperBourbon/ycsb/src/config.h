@@ -107,6 +107,7 @@ void set_default_props(utils::Properties* props) {
   props->SetProperty("max_background_jobs", "2");
   props->SetProperty("max_learning_jobs", "1");
   props->SetProperty("learned_model_error_bound", "8");
+  props->SetProperty("mod", "0");
   props->SetProperty("db_path", "/mnt-koo/db");
 }
 
@@ -128,6 +129,7 @@ void parse_command_line_arguments(int argc, char* argv[], utils::Properties* pro
     { "max_background_jobs", required_argument, 0, 0 },
     { "max_learning_jobs", required_argument, 0, 0 }, 
     { "learned_model_error_bound", required_argument, 0, 0 }, 
+    { "mod", required_argument, 0, 0 }, 
     { "db_path", required_argument, 0, 0 }, 
     { 0, 0, 0, 0 }
   };

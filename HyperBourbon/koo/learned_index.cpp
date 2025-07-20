@@ -376,11 +376,11 @@ bool FileLearnedIndexData::Learned(Version* version, FileMetaData* meta,
   return model->Learned(version, db->version_count, meta, level);
 }
 
-AccumulatedNumEntriesArray* FileLearnedIndexData::GetAccumulatedArray(
+/*AccumulatedNumEntriesArray* FileLearnedIndexData::GetAccumulatedArray(
     int file_num) {
   auto* model = GetModel(file_num);
   return &model->num_entries_accumulated;
-}
+}*/
 
 std::pair<uint64_t, uint64_t> FileLearnedIndexData::GetPosition(
     const Slice& key, int file_num) {
@@ -410,7 +410,7 @@ void FileLearnedIndexData::Report() {
   }*/
 }
 
-void AccumulatedNumEntriesArray::Add(uint64_t num_entries, string&& key) {
+/*void AccumulatedNumEntriesArray::Add(uint64_t num_entries, string&& key) {
   array.emplace_back(num_entries, key);
 }
 
@@ -487,6 +487,6 @@ bool AccumulatedNumEntriesArray::SearchNoError(uint64_t position, size_t* index,
 
 uint64_t AccumulatedNumEntriesArray::NumEntries() const {
   return array.empty() ? 0 : array.back().first;
-}
+}*/
 
 }  // namespace koo

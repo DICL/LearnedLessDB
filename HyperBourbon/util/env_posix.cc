@@ -859,21 +859,19 @@ class PosixEnv : public Env {
 			while (!learning_prepare.empty()) {
 				auto front = learning_prepare.front();
 				int level = front.second.first;
-#if !LEARNING_ALL
-				time_diff = front.first + koo::learn_trigger_time - time_start;
-				if (time_diff > 0) {
-					wait_for_time = true;
-					//std::cout << "time_diff: " << time_diff << " " << front.first << " " << time_start << std::endl;
-					break;
+				if (koo::mod == 0) {
+					time_diff = front.first + koo::learn_trigger_time - time_start;
+					if (time_diff > 0) {
+						wait_for_time = true;
+						break;
+					}
 				}
-#endif
 				learning_prepare.pop();
-#if LEARNING_ALL
-				learn_pq.push(std::make_pair(10, front));
-#else
-				double score = koo::learn_cb_model->CalculateCB(level, front.second.second->file_size);
-				if (score > CBModel_Learn::const_size_to_cost) learn_pq.push(std::make_pair(score, front));
-#endif
+				if (koo::mod == 1) learn_pq.push(std::make_pair(10, front));
+				else {
+					double score = koo::learn_cb_model->CalculateCB(level, front.second.second->file_size);
+					if (score > CBModel_Learn::const_size_to_cost) learn_pq.push(std::make_pair(score, front));
+				}
 				if (prepare_delete) break;
 			}
 			if (prepare_delete) break;
@@ -954,7 +952,6 @@ class PosixEnv : public Env {
 
 	void PrepareLearning(uint64_t time_start, int level, FileMetaData* meta) {
 		if (prepare_delete) return;
-		if (koo::MOD != 6 && koo::MOD != 7 && koo::MOD != 9) return;
 		prepare_queue_mutex_.Lock();
 		if (prepare_delete) {
 			prepare_queue_mutex_.Unlock();

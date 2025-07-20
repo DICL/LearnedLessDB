@@ -42,10 +42,8 @@ int main(int argc, char* argv[]){
   options.num_background_jobs = std::stoi(common_props.GetProperty("max_background_jobs"));
   options.env->num_learning_jobs = std::stoi(common_props.GetProperty("max_learning_jobs"));
   koo::learn_model_error = std::stod(common_props.GetProperty("learned_model_error_bound"));
-
+  koo::mod = std::stoi(common_props.GetProperty("mod"));
   std::string data_dir = common_props.GetProperty("db_path");
-  //std::string dbpath("/mnt-koo");
-  //std::string data_dir = dbpath + "/db";
 
 #if YCSB_COPYDB
   // Copy DB

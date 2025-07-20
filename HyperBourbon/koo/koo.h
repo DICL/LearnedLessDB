@@ -16,9 +16,6 @@
 #include <mutex>
 #include <condition_variable>
 
-#define LEARNING_ALL 0				// HyperBourbon(Always)
-#define BOURBON_OFFLINE 0			// HyperWiscKey
-
 #define YCSB_COPYDB 1		// SpanDB ycsb load 외 워크로드 전 db copy -> copy한 db에서 워크로드 실행
 #define YCSB_SOSD 0
 
@@ -26,6 +23,7 @@ namespace koo {
 
 extern std::string model_dbname;
 extern double learn_model_error;
+extern int mod;			// 0: HyperBourbon(CBA), 1: HyperBourbon(Always), 2: HyperWiscKey
 
 extern std::condition_variable cv;
 extern std::mutex cv_mtx;

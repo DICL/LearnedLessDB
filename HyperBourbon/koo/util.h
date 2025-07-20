@@ -27,7 +27,7 @@ namespace koo {
 	class FileStats;
 	class FileStatsData;
 
-	extern int MOD;
+	//extern int MOD;
 	extern uint32_t level_model_error;
 	extern FileLearnedIndexData* file_data;
 	extern CBModel_Learn* learn_cb_model;

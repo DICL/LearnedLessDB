@@ -405,8 +405,7 @@ void DBImpl::DeleteObsoleteFiles() {
       if (!keep) {
         if (type == kTableFile) {
           table_cache_->Evict(number);
-#if !LEARNING_ALL && !BOURBON_OFFLINE
-					if (!koo::fresh_write) {
+					if (koo::mod == 0) {
 						koo::FileStats* file_stat = koo::file_stats_data->GetFileStats(number);
 						if (file_stat != nullptr) {
 							file_stat->Finish();
@@ -416,7 +415,6 @@ void DBImpl::DeleteObsoleteFiles() {
 							}
 						}
 					}
-#endif
         }
         Log(options_.info_log, "Delete type=%d #%lld\n",
             int(type),
@@ -660,11 +658,9 @@ Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
     }
     edit->AddFile(level, meta.number, meta.file_size,
                   meta.smallest, meta.largest);
-#if !LEARNING_ALL && !BOURBON_OFFLINE
-		if (!koo::fresh_write) {
+		if (koo::mod == 0) {
 			koo::file_stats_data->InsertFileStats(meta.number, level, meta.file_size);
 		}
-#endif
   }
 
   CompactionStats stats;
@@ -708,10 +704,8 @@ void DBImpl::CompactMemTableThread() {
     }
 		bg_mem_job_ = true;
 
-#if !BOURBON_OFFLINE
 		koo::Stats* instance = koo::Stats::GetInstance();
 		uint64_t time_started = instance->StartTimer(16);
-#endif
 
     // Save the contents of the memtable as a new Table
     VersionEdit edit;
@@ -747,18 +741,15 @@ void DBImpl::CompactMemTableThread() {
       DeleteObsoleteFiles();
     } else {
       RecordBackgroundError(s);
-#if !BOURBON_OFFLINE
 			auto time = instance->PauseTimer(time_started, 16);
-#endif
       continue;
     }
 
-#if !BOURBON_OFFLINE
 		auto time = instance->PauseTimer(time_started, 16, true);
 		int level = edit.new_files_[0].first;
 
-		env_->PrepareLearning(time.second, level, new FileMetaData(edit.new_files_[0].second));
-#endif
+		if (koo::mod == 0 || koo::mod == 1)
+			env_->PrepareLearning(time.second, level, new FileMetaData(edit.new_files_[0].second));
 
     if (!shutting_down_.Acquire_Load() && !s.ok()) {
       // Wait a little bit before retrying background compaction in
@@ -904,10 +895,8 @@ void DBImpl::RecordBackgroundError(const Status& s) {
 
 Status DBImpl::BackgroundCompaction(unsigned level) {
   mutex_.AssertHeld();
-#if !BOURBON_OFFLINE
 	koo::Stats* instance = koo::Stats::GetInstance();
 	uint64_t time_started = instance->StartTimer(7);
-#endif
   Compaction* c = NULL;
   bool is_manual = (manual_compaction_ != NULL);
   InternalKey manual_end;
@@ -949,8 +938,7 @@ Status DBImpl::BackgroundCompaction(unsigned level) {
 		mutex_.Lock();
 		c->MarkFilesBeingCompacted(false);
 		versions_->UnregisterCompaction(c);
-#if !LEARNING_ALL && !BOURBON_OFFLINE
-		if (!koo::fresh_write) {
+		if (koo::mod == 0) {
 	    for (size_t i = 0; i < c->num_input_files(0); ++i) {
 			  FileMetaData* f = c->input(0, i);
 				koo::FileStats* file_stat = koo::file_stats_data->GetFileStats(f->number);
@@ -960,7 +948,6 @@ Status DBImpl::BackgroundCompaction(unsigned level) {
 				}
 			}
 		}
-#endif
     if (!status.ok()) {
       RecordBackgroundError(status);
     }
@@ -988,9 +975,7 @@ Status DBImpl::BackgroundCompaction(unsigned level) {
   }
 	bg_compaction_cv_.SignalAll();
 
-#if !BOURBON_OFFLINE
 	instance->PauseTimer(time_started, 7);
-#endif
 
   if (c) {
     delete c;
@@ -1096,26 +1081,24 @@ Status DBImpl::FinishCompactionOutputFile(CompactionState* compact,
   delete compact->outfile;
   compact->outfile = NULL;
 
-#if !LEARNING_ALL && !BOURBON_OFFLINE
-	if (!koo::fresh_write) {
+	if (koo::mod == 0) {
 		koo::file_stats_data->InsertFileStats(output_number, 
 				compact->compaction->level()+1, current_bytes);
 	}
-#endif
-#if !BOURBON_OFFLINE
-	int level = compact->compaction->level() + 1;
-	CompactionState::Output* output = compact->current_output();
+	if (koo::mod == 0 || koo::mod == 1) {
+		int level = compact->compaction->level() + 1;
+		CompactionState::Output* output = compact->current_output();
 
-	uint32_t dummy;
-	koo::Stats* instance = koo::Stats::GetInstance();
-	FileMetaData* meta = new FileMetaData();
-	meta->number = output->number;
-	meta->file_size = output->file_size;
-	meta->smallest = output->smallest;
-	meta->largest = output->largest;
+		uint32_t dummy;
+		koo::Stats* instance = koo::Stats::GetInstance();
+		FileMetaData* meta = new FileMetaData();
+		meta->number = output->number;
+		meta->file_size = output->file_size;
+		meta->smallest = output->smallest;
+		meta->largest = output->largest;
 
-	env_->PrepareLearning((__rdtscp(&dummy) - instance->initial_time) / koo::reference_frequency, level, meta);
-#endif
+		env_->PrepareLearning((__rdtscp(&dummy) - instance->initial_time) / koo::reference_frequency, level, meta);
+	}
 
   if (s.ok() && current_entries > 0) {
     // Verify that the table is usable
@@ -2035,9 +2018,8 @@ Status DB::Open(const Options& options, const std::string& dbname,
     }
     if (s.ok()) {
       impl->DeleteObsoleteFiles();
-#if !BOURBON_OFFLINE
-			impl->versions_->current()->ReadModel();
-#endif
+			if (koo::mod == 0 || koo::mod == 1)
+				impl->versions_->current()->ReadModel();
       impl->bg_compaction_cv_.Signal();
       impl->bg_memtable_cv_.Signal();
     }

@@ -28,7 +28,7 @@ namespace koo {
 
     // An array collecting the total number of keys in a level in or before each file. One per level.
     // Used to get the target file when a level model produces the predicted position in the level. 
-    class AccumulatedNumEntriesArray {
+    /*class AccumulatedNumEntriesArray {
         friend class LearnedIndexData;
 
     public:
@@ -42,7 +42,7 @@ namespace koo {
         // Used for testing assuming the model has no error
         bool SearchNoError(uint64_t position, size_t* index, uint64_t* relative_position);
         uint64_t NumEntries() const;
-    };
+    };*/
 
 
     class VersionAndSelf {
@@ -99,7 +99,7 @@ namespace koo {
         // all keys in the file/level to be leraned from
         std::vector<std::string> string_keys;
         // only used in level models
-        AccumulatedNumEntriesArray num_entries_accumulated;
+        //AccumulatedNumEntriesArray num_entries_accumulated;
 
         int level;
         mutable int served;
@@ -173,7 +173,7 @@ namespace koo {
         bool FillData(Version* version, FileMetaData* meta);
         std::vector<std::string>& GetData(FileMetaData* meta);
         std::pair<uint64_t, uint64_t> GetPosition(const Slice& key, int file_num);
-        AccumulatedNumEntriesArray* GetAccumulatedArray(int file_num);
+        //AccumulatedNumEntriesArray* GetAccumulatedArray(int file_num);
         LearnedIndexData* GetModel(int number);
         LearnedIndexData* GetModelForLookup(int number);
 				void DeleteModel(int number);
