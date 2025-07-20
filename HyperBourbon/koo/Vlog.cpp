@@ -29,22 +29,7 @@ VLog::VLog(const std::string& vlog_name) : writer(nullptr), reader(nullptr), cur
   vlog_flushed = file_stat.st_size;
 }
 
-/*void PrintString(std::string s){
-  for(size_t i = 0; i < s.size(); i++)
-    if((s.data()[i] <= 'z' && s.data()[i] >= 'a') || s.data()[i] <= 'Z' && s.data()[i] >= 'A')
-      fprintf(stderr, "%c", s.data()[i]);
-    else
-      fprintf(stderr, " |%d| ", s.data()[i]);
-  fprintf(stderr, "\n");
-}*/
-
 uint64_t VLog::AddRecord(const Slice& key, const Slice& value) {
-#if AC_TEST && MC_DEBUG
-	std::chrono::system_clock::time_point StartTime;
-	//if (koo::count_compaction_triggered_after_load) {
-		StartTime = std::chrono::system_clock::now();
-	//}
-#endif
   std::string buf;
   PutLengthPrefixedSlice(&buf, key);
   PutVarint32(&buf, value.size());
@@ -71,13 +56,6 @@ uint64_t VLog::AddRecord(const Slice& key, const Slice& value) {
   } else {
     count_pos.fetch_add(buf.size());
   }
-#if AC_TEST && MC_DEBUG
-	//if (koo::count_compaction_triggered_after_load) {
-		std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-		koo::time_tAppend += nano.count();
-		koo::num_tAppend++;
-	//}
-#endif
   return result;
 }
 

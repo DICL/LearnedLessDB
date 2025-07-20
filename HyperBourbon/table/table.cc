@@ -326,11 +326,7 @@ void Table::FillData(const ReadOptions& options, koo::LearnedIndexData* data) {
     int num_entries_this_block = 0;
     for (block_iter->SeekToRestartPoint(0); block_iter->ParseNextKey(); ++num_entries_this_block) {
         ParseInternalKey(block_iter->key(), &parsed_key);
-#if YCSB_CXX
-				data->string_keys.emplace_back(parsed_key.user_key.ToString());			// TODO 필요?
-#else
-        data->string_keys.emplace_back(parsed_key.user_key.data(), parsed_key.user_key.size());
-#endif
+				data->string_keys.emplace_back(parsed_key.user_key.ToString());
     }
 
     if (!koo::block_num_entries_recorded) {

@@ -148,9 +148,6 @@ class Version {
 	bool FillData(const ReadOptions& options, FileMetaData* meta, koo::LearnedIndexData* data);
 	void WriteModel();
 	void ReadModel();
-#if OFFLINE_FILELEARN
-	void OfflineFileLearn();
-#endif
 #if MODEL_ACCURACY
 	void TestModelAccuracy(uint64_t& file_number, uint64_t& file_size);
 #endif

@@ -52,7 +52,6 @@ class Version;
 class VersionSet;
 class ConcurrentWritableFile;
 
-#if MERGE
 enum SaverState {
   kNotFound,
   kFound,
@@ -69,7 +68,6 @@ struct Saver {
   Saver(const Saver&);
   Saver& operator = (const Saver&);
 };
-#endif
 
 // Return the smallest index i such that files[i]->largest >= key.
 // Return files.size() if there is no such file.

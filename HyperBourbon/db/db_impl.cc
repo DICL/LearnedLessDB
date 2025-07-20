@@ -285,7 +285,7 @@ DBImpl::DBImpl(const Options& raw_options, const std::string& dbname)
 DBImpl::~DBImpl() {
   // Wait for background work to finish
   mutex_.Lock();
-#if VLOG && !YCSB_DB
+#if VLOG
 	while (bg_mem_job_) {
 		bg_mem_job_cv_.Wait();
 	}
@@ -305,17 +305,12 @@ DBImpl::~DBImpl() {
 #if THREADSAFE
 	env_->StopLearning();
 #endif
-#if OFFLINE_FILELEARN
-	// learn files before delete db (offline file learning)
-	koo::db->versions_->current()->OfflineFileLearn();
-#endif
-
 
   if (db_lock_ != NULL) {
     env_->UnlockFile(db_lock_);
   }
 
-#if LEARN && !YCSB_DB
+#if LEARN
 	koo::Report();
 #endif
 #if REMOVE_MUTEX
@@ -957,41 +952,15 @@ Status DBImpl::TEST_CompactMemTable() {
 
 void DBImpl::CompactLevelThread() {
   MutexLock l(&mutex_);
-#if AC_TEST && MC_DEBUG
-	/*uint32_t mytid = koo::id_twait++;
-	std::chrono::system_clock::time_point StartTime2;
-	std::cout << "[TID " << mytid << "] Compaction thread id: " << syscall(SYS_gettid) << std::endl;*/
-#endif
   while (!shutting_down_.Acquire_Load() && !allow_background_activity_) {
     bg_compaction_cv_.Wait();
   }
   while (!shutting_down_.Acquire_Load()) {
 #if MULTI_COMPACTION
-		// TODO busy lock? 그냥 Wait()해도 flush에서 signal 줘서 다른 레벨끼린 동시에 compaction할때도 있음
-		// 아니면 Finalize 후 unlock할때 signal 추가? 이런식으로 바꿔야함
     unsigned level = config::kNumLevels;
-    /*uint32_t cnt = 0;
     while (!shutting_down_.Acquire_Load() && manual_compaction_ == NULL) {
     	level = versions_->PickCompactionLevel(straight_reads_ > kStraightReads);
     	if (level != config::kNumLevels) break;
-    	if (cnt < 3) {
-	    	mutex_.Unlock();
-				cnt++;
-		    int seconds_to_sleep = 1;
-			  env_->SleepForMicroseconds(seconds_to_sleep * 1000000);
-				mutex_.Lock();
-			} else bg_compaction_cv_.Wait();
-    }*/
-    while (!shutting_down_.Acquire_Load() && manual_compaction_ == NULL) {
-    	level = versions_->PickCompactionLevel(straight_reads_ > kStraightReads);
-#if MULTI_COMPACTION_CNT
-			koo::num_PickCompactionLevel++;
-#endif
-    	if (level != config::kNumLevels) break;
-#if AC_TEST && MC_DEBUG
-			/*if (koo::count_compaction_triggered_after_load)
-				StartTime2 = std::chrono::system_clock::now();*/
-#endif
       bg_compaction_cv_.Wait();
     }
 #else		// MULTI_COMPACTION
@@ -1004,30 +973,13 @@ void DBImpl::CompactLevelThread() {
     if (shutting_down_.Acquire_Load()) {
       break;
     }
-#if AC_TEST && MC_DEBUG
-		/*if (koo::count_compaction_triggered_after_load) {
-			std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime2;
-			koo::time_twait[mytid] += nano.count();
-			koo::num_twait[mytid]++;
-		}*/
-#endif
 
-#if AC_TEST && TIME_W_DETAIL
-		std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
 #if MULTI_COMPACTION
     Status s = BackgroundCompaction(level);
 #else
     assert(manual_compaction_ == NULL || num_bg_threads_ == 2);
     Status s = BackgroundCompaction();
 #endif
-/*#if AC_TEST && TIME_W_DETAIL
-		if (koo::count_compaction_triggered_after_load) {
-			std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-			koo::bc_d[level] += nano.count();
-			koo::num_bc_d[level]++;
-		}
-#endif*/
     bg_fg_cv_.SignalAll(); // before the backoff In case a waiter
                            // can proceed despite the error
 
@@ -1094,15 +1046,9 @@ Status DBImpl::BackgroundCompaction() {
   } else {
 #if !MULTI_COMPACTION
     unsigned level = versions_->PickCompactionLevel(levels_locked_, straight_reads_ > kStraightReads);
-#if MULTI_COMPACTION_CNT
-		koo::num_PickCompactionLevel++;
-#endif
 #endif
     if (level != config::kNumLevels) {
       c = versions_->PickCompaction(versions_->current(), level);
-#if MULTI_COMPACTION_CNT
-			koo::num_PickCompaction++;
-#endif
     }
 #if !MULTI_COMPACTION
     if (c) {
@@ -1138,9 +1084,6 @@ Status DBImpl::BackgroundCompaction() {
 		mutex_.Unlock();
 		current_for_read_.reset(new CurrentForRead(this));
 		mutex_.Lock();
-#endif
-#if MULTI_COMPACTION_CNT
-		koo::num_output_files += c->num_input_files(0);
 #endif
 #if MULTI_COMPACTION
 		c->MarkFilesBeingCompacted(false);
@@ -1198,35 +1141,10 @@ Status DBImpl::BackgroundCompaction() {
 		//koo::compactiontime += nano.count();
 		//koo::num_compactiontime++;
 #endif
-/*#if AC_TEST
-		if (koo::count_compaction_triggered_after_load) {
-			koo::time_compaction_triggered_after_load += nano.count();
-			koo::num_compaction_triggered_after_load++;
-#if TIME_W_DETAIL
-			koo::compactiontime_d[c->level()] += nano.count();
-			koo::num_compactiontime_d[c->level()]++;
-#endif
-		}
-#endif*/
 #endif
     if (!status.ok()) {
       RecordBackgroundError(status);
     }
-/*#if LEARN && LEARNING_ALL
-		if (status.ok()) {
-			int level = compact->compaction->level() + 1;
-			for (auto& output : compact->outputs) {
-				uint32_t dummy;
-				FileMetaData* meta = new FileMetaData();
-				meta->number = output.number;
-				meta->file_size = output.file_size;
-				meta->smallest = output.smallest;
-				meta->largest = output.largest;
-
-				env_->PrepareLearning((__rdtscp(&dummy) - instance->initial_time) / koo::reference_frequency, level, meta);
-			}
-		}
-#endif*/
     CleanupCompaction(compact);
 #if MULTI_COMPACTION
 		c->MarkFilesBeingCompacted(false);
@@ -1478,9 +1396,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 #if TIME_W
 	std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
 #endif
-#if TIME_MODELCOMP
-	//uint64_t sum_read = 0;
-#endif
 #if MODELCOMP_TEST
 	uint64_t start, tmp2;
 	if (compact->compaction->level()) {
@@ -1593,9 +1508,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
       }
     }
 
-#if TIME_MODELCOMP
-				//std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
 #if MODELCOMP_TEST
 		if (compact->compaction->level()) {
 			start = koo::rdtsc_start();
@@ -1607,16 +1519,7 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 			tmp2 += (koo::rdtsc_end() - start);
 		}
 #endif
-#if TIME_MODELCOMP
-				//std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-				//sum_read += nano.count();
-#endif
   }
-#if TIME_MODELCOMP
-	//koo::sum_read += sum_read;
-#endif
-	//if (input->Valid())
-		//fprintf(stderr, "hihihi\n");
 #if 0&MODELCOMP_TEST
 		if (compact->compaction->level())
 			koo::total_num_keys[compact->compaction->level()-1] += total_num_key;
@@ -1685,9 +1588,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 		}
 		koo::mutex_lifespan_.unlock();
 #endif
-#if MULTI_COMPACTION_CNT
-		koo::num_output_files += compact->outputs.size();
-#endif
   }
   if (!status.ok()) {
 		//fprintf(stderr, "hihihi3\n");
@@ -1740,9 +1640,7 @@ Iterator* DBImpl::NewInternalIterator(const ReadOptions& options, uint64_t numbe
   if (!external_sync) {
     mutex_.Lock();
   }
-#if !REMOVE_READTRIGGERCOMP
   ++straight_reads_;
-#endif
   *latest_snapshot = versions_->LastSequence();
 
   // Collect together all needed child iterators
@@ -1859,12 +1757,7 @@ Status DBImpl::Get(const ReadOptions& options,
   if (have_stat_update && current->UpdateStats(stats)) {
     bg_compaction_cv_.Signal();
   }
-#if !REMOVE_READTRIGGERCOMP
   ++straight_reads_;
-#endif
-#if MULTI_COMPACTION		// TODO 좀 똑똑한 방법 없나..
-	//if (straight_reads_ == 100) bg_compaction_cv_.Signal();
-#endif
 #if !REMOVE_MUTEX
   mem->Unref();
   if (imm != NULL) imm->Unref();
@@ -2022,9 +1915,7 @@ void DBImpl::ReleaseReplayIterator(ReplayIterator* _iter) {
 
 void DBImpl::RecordReadSample(Slice key) {
   MutexLock l(&mutex_);
-#if !REMOVE_READTRIGGERCOMP
   ++straight_reads_;
-#endif
   if (versions_->current()->RecordReadSample(key)) {
     //if (!koo::count_compaction_triggered_after_load) bg_compaction_cv_.Signal();
     bg_compaction_cv_.Signal();
@@ -2146,14 +2037,7 @@ Status DBImpl::SequenceWriteBegin(Writer* w, WriteBatch* updates) {
         // We have filled up the current memtable, but the previous
         // one is still being compacted, so we wait.
         bg_memtable_cv_.Signal();
-#if TIME_MODELCOMP
-				std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
         bg_fg_cv_.Wait();
-#if TIME_MODELCOMP
-				std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-				koo::sum_waittime += nano.count();
-#endif
       } else {
         // Attempt to switch to a new memtable and trigger compaction of old
         assert(versions_->PrevLogNumber() == 0);
@@ -2275,14 +2159,7 @@ void DBImpl::SequenceWriteEnd(Writer* w) {
   }
 
   if (w->micros_ > config::kL0_SlowdownWritesTrigger) {
-#if TIME_MODELCOMP
-				std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
     env_->SleepForMicroseconds(w->micros_ - config::kL0_SlowdownWritesTrigger);
-#if TIME_MODELCOMP
-				std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-				koo::sum_micros += nano.count();
-#endif
   }
 }
 
@@ -2607,9 +2484,6 @@ Status DB::Open(const Options& options, const std::string& dbname,
       impl->DeleteObsoleteFiles();
 #if LEARN
 #if BOURBON_OFFLINE
-#if OFFLINE_FILELEARN
-			impl->versions_->current()->ReadModel();
-#endif
 #else
 			impl->versions_->current()->ReadModel();
 #endif
@@ -2689,29 +2563,6 @@ void DBImpl::ReturnCurrentVersion(Version* version) {
 	version->Unref();
 }
 
-#if VLOG && YCSB_DB
-void DBImpl::WaitForBackground() {
-#if THREADSAFE
-	//env_->StopLearning();
-#endif
-	MutexLock l(&mutex_);
-	while (bg_mem_job_) {
-		bg_mem_job_cv_.Wait();
-	}
-
-	CompactMemTable(imm_);
-	CompactMemTable(mem_);
-	koo::db->vlog->Sync();
-
-	while (versions_->current()->NumFiles(0)) {
-		Status s = BackgroundCompaction(0);
-		if (versions_->current()->NumFiles(0) == 0) break;
-		if (!s.ok()) {
-			bg_compaction_cv_.Wait();
-		}
-	}
-}
-#endif
 #endif
 
 

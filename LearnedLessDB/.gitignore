@@ -33,12 +33,8 @@
 /Makefile.old
 /missing
 /stamp-h1
-
-# KOO
-/koo/data
 /ycsb/build
 /ycsb/results
-/ycsb/scripts
 tags
 /read_cold_ycsb
 /sosd

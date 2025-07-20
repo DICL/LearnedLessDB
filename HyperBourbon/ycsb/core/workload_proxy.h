@@ -37,14 +37,6 @@ class WorkloadProxy{
       value_len = workload_->field_count() * workload_->field_len();
 		}
 
-#if YCSB_KEY
-		void LoadInsertArgs(std::string &key) {
-			key = workload_->NextSequenceKey();
-		}
-		size_t ValueLen() {
-			return workload_->field_count() * workload_->field_len();
-		}
-#endif
 #if YCSB_WRAPPER
 		double read_proportion;
 		double update_proportion;

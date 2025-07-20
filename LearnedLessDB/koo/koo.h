@@ -25,9 +25,7 @@
 
 #define NORMARLIZE_KEY 0		// key - min_key. 선분 k, b만
 
-#define MERGE 1
 #define SKIP_SEG 30			// default. merge_new.cc
-#define OPT1 1									// Compaction 내 Compare() 횟수 1/n으로 줄여보자	TODO
 
 #define MODEL_COMPACTION 1		// compaction using merged models
 

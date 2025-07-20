@@ -32,16 +32,6 @@ std::mutex cv_mtx;
 std::atomic<bool> should_stop{false};
 #endif
 
-#if TIME_MODELCOMP
-uint64_t sum_micros = 0;
-uint64_t sum_waittime = 0;
-//std::atomic<uint64_t> sum_read(0);
-#endif
-
-#if YCSB_LOAD_THREAD
-bool only_load = false;
-#endif
-
 #if SST_LIFESPAN
 std::mutex mutex_lifespan_;
 std::unordered_map<uint64_t, FileLifespanData, hash_FileLifespanData> lifespans;
@@ -58,22 +48,6 @@ uint32_t num_inputs_compaction_triggered_after_load = 0;			// input files
 uint32_t num_outputs_compaction_triggered_after_load = 0;		// output files
 int64_t size_inputs_compaction_triggered_after_load = 0;			// input files
 int64_t size_outputs_compaction_triggered_after_load = 0;		// output files
-#if TIME_W_DETAIL
-uint64_t compactiontime_d[5];
-uint32_t num_compactiontime_d[5];
-uint64_t bc_d[5];
-uint32_t num_bc_d[5];
-
-uint64_t time_filldata;
-uint32_t num_filldata;
-#endif
-#if MC_DEBUG
-/*uint32_t id_twait = 0;
-uint64_t time_twait[8];
-uint32_t num_twait[8];*/
-std::atomic<uint64_t> time_tAppend(0);
-std::atomic<uint32_t> num_tAppend(0);
-#endif
 #endif
 
 #if TIME_W
@@ -117,13 +91,6 @@ std::atomic<uint64_t> i_path_l[7];
 std::atomic<uint64_t> m_path_l[7];
 #endif
 
-#if MULTI_COMPACTION_CNT
-uint64_t num_PickCompactionLevel = 0;
-uint64_t num_PickCompaction = 0;
-uint64_t num_compactions = 0;
-uint64_t num_output_files = 0;
-#endif
-
 #if MODELCOMP_TEST
 std::atomic<uint64_t> num_comparisons[2];
 //std::atomic<uint64_t> num_keys_lower[2];
@@ -158,13 +125,6 @@ void Report() {
 		std::cout << "\tAverage CPU cycles:\t" << std::to_string(koo::total_cpu_cycles[i]/((double)koo::num_cpu_cycles[i])) << "\n";
 	}
 #endif
-#if TIME_MODELCOMP
-	std::cout << "----------------------------------------------------------" << std::endl;
-	std::cout << "Sum micros: " << koo::sum_micros/1000 << std::endl;
-	std::cout << "Sum wait imm: " << koo::sum_waittime << std::endl;
-	//std::cout << "Sum read: " << koo::sum_read << std::endl;
-	std::cout << "----------------------------------------------------------" << std::endl;
-#endif
 #if AC_TEST
 	std::string stat_str;
 	koo::db->GetProperty("leveldb.stats", &stat_str);
@@ -180,35 +140,6 @@ void Report() {
 		std::cout << "Avg compaction time triggered after load = " << std::to_string((double)koo::time_compaction_triggered_after_load/((double)koo::num_compaction_triggered_after_load)) << " ns,\ttotal = " << koo::time_compaction_triggered_after_load << std::endl;*/
 		std::cout << "----------------------------------------------------------" << std::endl;
 	}
-#if TIME_W_DETAIL
-	if (koo::num_compactiontime_d[0] || koo::num_compactiontime_d[1]) {
-		std::cout << "----------------------------------------------------------" << std::endl;
-		std::cout << "Compaction info triggered after load\n";
-		for (int i=0; i<5; i++) {
-			if (!(koo::num_compactiontime_d[i])) continue;
-			std::cout << "[ Level " << i << "+" << i+1 << " ]\n";
-			if (koo::num_bc_d[i])
-				std::cout << "\tavg BackgroundCompaction() time: " << std::to_string(koo::bc_d[i]/((double)koo::num_bc_d[i])) << " ns,\tnum: " << koo::num_bc_d[i] << std::endl;
-			std::cout << "\tavg compaction time: " << std::to_string(koo::compactiontime_d[i]/((double)koo::num_compactiontime_d[i])) << " ns,\tnum: " << koo::num_compactiontime_d[i] << std::endl;
-		}
-		std::cout << "----------------------------------------------------------" << std::endl;
-		std::cout << "FillData avg time: " << std::to_string(koo::time_filldata/(double)koo::num_filldata) << ",\tnum: " << koo::num_filldata << ",\ttotal: " << koo::time_filldata << std::endl;
-		std::cout << "----------------------------------------------------------" << std::endl;
-	}
-#endif
-#if MC_DEBUG
-	//if (koo::num_twait[0] || koo::num_twait[1]) {
-	if (koo::num_tAppend) {
-		std::cout << "----------------------------------------------------------" << std::endl;
-		/*std::cout << "Time waiting for compaction per thread\n";
-		for (int i=0; i<8; i++) {
-			std::cout << "[Thread " << i << "] num: " << koo::num_twait[i] << ",\ttotal: " << koo::time_twait[i] << ",\tavg: " << std::to_string(koo::time_twait[i]/(double)koo::num_twait[i]) << std::endl;
-		}*/
-		std::cout << "Total time spent on AddRecord: " << koo::time_tAppend << ",\tnum: " << koo::num_tAppend << std::endl;
-		std::cout << "Avg: " << std::to_string(koo::time_tAppend/(double)koo::num_tAppend) << std::endl;
-		std::cout << "----------------------------------------------------------" << std::endl;
-	}
-#endif
 #endif
 #if LOOKUP_ACCURACY
 	for (int i=0; i<7; i++) {
@@ -323,16 +254,6 @@ void Report() {
 		uint64_t total_time = (total_i_path + total_m_path)/1000000000;
 		std::cout << "Total # path: " << total_num_path << ", total time: " << total_time << " s\n";
 		std::cout << "# IB path / # total path = " << std::to_string(total_num_i_path/(double)total_num_path) << ",\t# model path / # total path = " << std::to_string(total_num_m_path/(double)total_num_path) << std::endl;
-		std::cout << "----------------------------------------------------------" << std::endl;
-	}
-#endif
-#if MULTI_COMPACTION_CNT
-	if (koo::num_PickCompaction) {
-		std::cout << "----------------------------------------------------------" << std::endl;
-		std::cout << "# PickCompactionLevel() called: " << koo::num_PickCompactionLevel << std::endl;
-		std::cout << "# PickCompaction() called: " << koo::num_PickCompaction << std::endl;
-		std::cout << "# Compactions: " << koo::num_compactions << std::endl;
-		std::cout << "# Compaction output files: " << koo::num_output_files << std::endl;
 		std::cout << "----------------------------------------------------------" << std::endl;
 	}
 #endif

@@ -1,3 +1,0 @@
-/koo/HyperBourbon/ycsb/build/CMakeFiles/ycsb.dir
-/koo/HyperBourbon/ycsb/build/CMakeFiles/edit_cache.dir
-/koo/HyperBourbon/ycsb/build/CMakeFiles/rebuild_cache.dir

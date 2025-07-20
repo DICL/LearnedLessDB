@@ -137,11 +137,9 @@ struct DBImpl::CompactionState {
     uint64_t number;
     uint64_t file_size;
     InternalKey smallest, largest;
-#if MERGE
 		koo::MergeModel* merge;
 #if MODEL_COMPACTION
     std::vector<uint64_t> *string_keys;
-#endif
 #endif
   };
   std::vector<Output> outputs;
@@ -152,14 +150,12 @@ struct DBImpl::CompactionState {
 
   uint64_t total_bytes;
 
-#if MERGE
 	bool merge_model;
 #if !MODEL_COMPACTION
 	std::vector<uint64_t> x_lasts;
 	int x_lasts_size;
 	int cur_x_lasts;
 	uint32_t num_keys;
-#endif
 #endif
 
   Output* current_output() { return &outputs[outputs.size()-1]; }
@@ -170,13 +166,11 @@ struct DBImpl::CompactionState {
         outputs(),
         outfile(NULL),
         builder(NULL),
-#if MERGE
 				merge_model(false),
 #if !MODEL_COMPACTION
 				x_lasts_size(0),
 				cur_x_lasts(0),
 				num_keys(0),
-#endif
 #endif
         total_bytes(0) {
   }
@@ -205,9 +199,7 @@ Options SanitizeOptions(const std::string& dbname,
     // Open a log file in the same directory as the db
     src.env->CreateDir(dbname);  // In case it does not exist
     src.env->RenameFile(InfoLogFileName(dbname), OldInfoLogFileName(dbname));
-#if MERGE
 		src.env->CreateDir(dbname + koo::model_dbname);
-#endif
     Status s = src.env->NewLogger(InfoLogFileName(dbname), &result.info_log);
     if (!s.ok()) {
       // No place suitable for logging
@@ -311,9 +303,7 @@ DBImpl::~DBImpl() {
     env_->UnlockFile(db_lock_);
   }
 
-#if MERGE
-	koo::Report();
-#endif
+	//koo::Report();
   current_for_read_.reset();
   delete versions_;
   if (mem_ != NULL) mem_->Unref();
@@ -1054,7 +1044,7 @@ Status DBImpl::OpenCompactionOutputFile(CompactionState* compact) {
     out.number = file_number;
     out.smallest.Clear();
     out.largest.Clear();
-#if MERGE && !MODEL_COMPACTION
+#if !MODEL_COMPACTION
 		out.merge = new koo::MergeModel();
 #endif
     compact->outputs.push_back(out);
@@ -1090,7 +1080,6 @@ Status DBImpl::FinishCompactionOutputFile(CompactionState* compact,
   // Check for iterator errors
   Status s = input->status();
   const uint64_t current_entries = compact->builder->NumEntries();
-#if MERGE
 	if (compact->merge_model) {
 		koo::MergeModel* merge = compact->current_output()->merge;
 		merge->num_entries = current_entries;
@@ -1106,7 +1095,6 @@ Status DBImpl::FinishCompactionOutputFile(CompactionState* compact,
 		}
 #endif
 	}
-#endif
 
   if (s.ok()) {
     s = compact->builder->Finish();
@@ -1134,20 +1122,16 @@ Status DBImpl::FinishCompactionOutputFile(CompactionState* compact,
 	koo::file_size[compact->compaction->level()+1] += current_bytes;
 #endif
 
-#if MERGE
 	if (!compact->merge_model) {
-#endif
-	int level = compact->compaction->level() + 1;
-	CompactionState::Output* output = compact->current_output();
-	FileMetaData* meta = new FileMetaData();
-	meta->number = output->number;
-	meta->file_size = output->file_size;
-	meta->smallest = output->smallest;
-	meta->largest = output->largest;
-	env_->PrepareLearning(level, meta);
-#if MERGE
+		int level = compact->compaction->level() + 1;
+		CompactionState::Output* output = compact->current_output();
+		FileMetaData* meta = new FileMetaData();
+		meta->number = output->number;
+		meta->file_size = output->file_size;
+		meta->smallest = output->smallest;
+		meta->largest = output->largest;
+		env_->PrepareLearning(level, meta);
 	}
-#endif
 
   if (s.ok() && current_entries > 0) {
     // Verify that the table is usable
@@ -1193,32 +1177,9 @@ Status DBImpl::InstallCompactionResults(CompactionState* compact) {
   return s;
 }
 
-#if MERGE
-/*void DBImpl::DoMergeSort(std::vector<uint64_t>& v, int start, int end) {
-	if (start >= end) return;
-	int mid = (start + end) / 2;
-
-	DoMergeSort(v, start, mid);
-	DoMergeSort(v, mid+1, end);
-
-	std::vector<uint64_t> ret(end+1);
-	int ret_idx = 0, i = start, j = mid + 1;
-	while (i <= mid && j <= end) {
-		if (v[i] < v[j]) ret[ret_idx++] = v[i++];
-		else ret[ret_idx++] = v[j++];
-	}
-
-	while (i <= mid) ret[ret_idx++] = v[i++];
-	while (j <= end) ret[ret_idx++] = v[j++];
-
-	for (int k=start, ret_idx=0; k<=end; k++, ret_idx++)
-		v[k] = ret[ret_idx];
-}*/
-
 bool DBImpl::CheckIfModelMergingPossible(CompactionState* compact) {
 	Compaction* c_ = compact->compaction;
 	size_t num_input_files[2] = {c_->num_input_files(0), c_->num_input_files(1)};
-	//std::vector<std::string> x_lasts_str;
 #if TIME_W
 	std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
 #endif
@@ -1246,9 +1207,7 @@ bool DBImpl::CheckIfModelMergingPossible(CompactionState* compact) {
 		}
 	}
 	compact->x_lasts_size = x_lasts.size();
-	//DoMergeSort(x_lasts, 0, compact->x_lasts_size - 1);
 	std::sort(x_lasts.begin(), x_lasts.end());		// quick sort
-	//for (auto& x_last : compact->x_lasts) x_lasts_str.push_back(std::to_string(x_last));
 #endif
 #if TIME_W
 	std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
@@ -1279,9 +1238,7 @@ Status DBImpl::DoCompactionWorkWithModelMerging(CompactionState* compact) {
   bool has_current_key = false;
   SequenceNumber last_sequence_for_key = kMaxSequenceNumber;
   size_t boundary_hint = 0;
-#if OPT1
 	uint32_t pass = 4;
-#endif
 #if MODELCOMP_TEST
 	uint64_t total_num_key = 0;
 #endif
@@ -1375,27 +1332,16 @@ Status DBImpl::DoCompactionWorkWithModelMerging(CompactionState* compact) {
       compact->current_output()->largest.DecodeFrom(key);
       compact->builder->Add(key, input->value());
 #if !MODEL_COMPACTION
-#if OPT1
 			if (pass) { pass--; }
 			else {
 				int& cur = compact->cur_x_lasts;
 				if (ikey.user_key.SliceToInteger() > compact->x_lasts[cur]) {
-				//if (user_comparator()->Compare(ikey.user_key, Slice(x_lasts_str[cur])) > 0) {
-				//if ((uint64_t)std::stoull(ikey.user_key.ToString()) > compact->x_lasts[cur]) {
 					compact->current_output()->merge->seg_infos.push_back(std::make_pair(compact->x_lasts[cur++], compact->num_keys));
 					compact->num_keys = 0;
 				}
 				compact->num_keys += 5;
-				pass = 4;		// n번 pass 후 check -> num_keys += n+1
+				pass = 4;
 			}
-#else
-			int& cur = compact->cur_x_lasts;
-			if (ikey.user_key.SliceToInteger() > compact->x_lasts[cur]) {
-				compact->current_output()->merge->seg_infos.push_back(std::make_pair(compact->x_lasts[cur++], compact->num_keys));
-				compact->num_keys = 0;
-			}
-			compact->num_keys++;
-#endif
 #endif
 
       // Close output file if it is big enough
@@ -1421,8 +1367,6 @@ Status DBImpl::DoCompactionWorkWithModelMerging(CompactionState* compact) {
 		tmp += (koo::rdtsc_end() - start);
 #endif
   }
-  //fprintf(stderr, "is valid %d %d\n", input->Valid(), input2->Valid());
-  //if (input->Valid()) fprintf(stderr, "hihihihi\n");
 #if MODELCOMP_TEST
 	koo::total_num_keys[compact->compaction->level()-1] += total_num_key;
 #endif
@@ -1431,7 +1375,6 @@ Status DBImpl::DoCompactionWorkWithModelMerging(CompactionState* compact) {
 #endif
 
   if (status.ok() && shutting_down_.Acquire_Load()) {
-    //fprintf(stderr, "hihihihi2\n");
     status = Status::IOError("Deleting DB during compaction");
   }
   if (status.ok() && compact->builder != NULL) {
@@ -1450,7 +1393,6 @@ Status DBImpl::DoCompactionWorkWithModelMerging(CompactionState* compact) {
 
   return status;
 }
-#endif
 
 Status DBImpl::DoCompactionWork(CompactionState* compact) {
   const uint64_t start_micros = env_->NowMicros();
@@ -1474,144 +1416,122 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
   // Release mutex while we're actually doing the compaction work
   mutex_.Unlock();
 
-/*#if MODEL_ACCURACY
-	for (size_t l=0; l<2; l++) {
-		for (size_t i=0; i<compact->compaction->num_input_files(l); ++i) {
-			FileMetaData* f = compact->compaction->input(l, i);
-			koo::LearnedIndexData* model = koo::file_data->GetModelForLookup(f->number);
-			if (model != nullptr && model->Learned()) {
-				std::shared_ptr<CurrentForRead> current_for_read = current_for_read_;
-			  Version* current = current_for_read->v();
-				current->TestModelAccuracy(f->number, f->file_size);
-			}
-		}
-	}
-#endif*/
-
 #if TIME_W
 	std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
 #endif
   Status status;
-#if MERGE
 	Compaction* c_ = compact->compaction;
   if (c_->level() && CheckIfModelMergingPossible(compact)) {		// Over level 1 compaction
   	status = DoCompactionWorkWithModelMerging(compact);
 	} else {
-#endif
-  Iterator* input = versions_->MakeInputIterator(compact->compaction);
-  input->SeekToFirst();
-  ParsedInternalKey ikey;
-  ParsedInternalKey current_key;
-  std::string current_key_backing;
-  bool has_current_key = false;
-  SequenceNumber last_sequence_for_key = kMaxSequenceNumber;
-  size_t boundary_hint = 0;
-  for (; input->Valid() && !shutting_down_.Acquire_Load(); ) {
-    Slice key = input->key();
-    // Handle key/value, add to state, etc.
-    bool drop = false;
-    if (!ParseInternalKey(key, &ikey)) {
-      // Do not hide error keys
-      current_key_backing.clear();
-      has_current_key = false;
-      last_sequence_for_key = kMaxSequenceNumber;
-    } else {
-      if (!has_current_key ||
-          user_comparator()->Compare(ikey.user_key,
-                                     current_key.user_key) != 0) {
-        if (has_current_key && compact->builder &&
-            compact->builder->FileSize() >=
-            compact->compaction->MinOutputFileSize() &&
-            compact->compaction->CrossesBoundary(current_key, ikey, &boundary_hint)) {
-          status = FinishCompactionOutputFile(compact, input);
-          if (!status.ok()) {
-            break;
-          }
-        }
-        // First occurrence of this user key
-        current_key_backing.assign(key.data(), key.size());
-        bool x = ParseInternalKey(Slice(current_key_backing), &current_key);
-        assert(x);
-        has_current_key = true;
-        last_sequence_for_key = kMaxSequenceNumber;
-      }
-      /*std::cout << "key.data(): " << key.data() << ",\tkey.size(): " << key.size() << ",\tkey.uint(): " << key.uint() << std::endl;
-      std::cout << "ikey.user_key.data(): " << ikey.user_key.data() << ",\tikey.user_key.size(): " << ikey.user_key.size() << ",\tikey.user_key.uint(): " << ikey.user_key.uint() << std::endl;
-      std::cout << "ikey.sequence: " << ikey.sequence << ",\tikey.type: " << ikey.type << std::endl;
-      std::cout << std::endl;*/
+		Iterator* input = versions_->MakeInputIterator(compact->compaction);
+	  input->SeekToFirst();
+		ParsedInternalKey ikey;
+	  ParsedInternalKey current_key;
+		std::string current_key_backing;
+	  bool has_current_key = false;
+		SequenceNumber last_sequence_for_key = kMaxSequenceNumber;
+	  size_t boundary_hint = 0;
+		for (; input->Valid() && !shutting_down_.Acquire_Load(); ) {
+	    Slice key = input->key();
+	    // Handle key/value, add to state, etc.
+			bool drop = false;
+		  if (!ParseInternalKey(key, &ikey)) {
+	      // Do not hide error keys
+				current_key_backing.clear();
+			  has_current_key = false;
+		    last_sequence_for_key = kMaxSequenceNumber;
+	    } else {
+				if (!has_current_key ||
+			      user_comparator()->Compare(ikey.user_key,
+		                                   current_key.user_key) != 0) {
+	        if (has_current_key && compact->builder &&
+					    compact->builder->FileSize() >=
+				      compact->compaction->MinOutputFileSize() &&
+			        compact->compaction->CrossesBoundary(current_key, ikey, &boundary_hint)) {
+		        status = FinishCompactionOutputFile(compact, input);
+	          if (!status.ok()) {
+							break;
+						}
+					}
+				  // First occurrence of this user key
+			    current_key_backing.assign(key.data(), key.size());
+		      bool x = ParseInternalKey(Slice(current_key_backing), &current_key);
+	        assert(x);
+					has_current_key = true;
+				  last_sequence_for_key = kMaxSequenceNumber;
+			  }
 
-      // Just remember that last_sequence_for_key is decreasing over time, and
-      // all of this makes sense.
+		    // Just remember that last_sequence_for_key is decreasing over time, and
+	      // all of this makes sense.
 
-      if (last_sequence_for_key <= compact->smallest_snapshot) {
-        // Hidden by an newer entry for same user key
-        drop = true;    // (A)
-      } else if (ikey.type == kTypeDeletion &&
-                 ikey.sequence <= compact->smallest_snapshot &&
-                 compact->compaction->IsBaseLevelForKey(ikey.user_key)) {
-        // For this user key:
-        // (1) there is no data in higher levels
-        // (2) data in lower levels will have larger sequence numbers
-        // (3) data in layers that are being compacted here and have
-        //     smaller sequence numbers will be dropped in the next
-        //     few iterations of this loop (by rule (A) above).
-        // Therefore this deletion marker is obsolete and can be dropped.
-        drop = true;
-      }
+				if (last_sequence_for_key <= compact->smallest_snapshot) {
+			    // Hidden by an newer entry for same user key
+		      drop = true;    // (A)
+	      } else if (ikey.type == kTypeDeletion &&
+							     ikey.sequence <= compact->smallest_snapshot &&
+						       compact->compaction->IsBaseLevelForKey(ikey.user_key)) {
+					// For this user key:
+				  // (1) there is no data in higher levels
+			    // (2) data in lower levels will have larger sequence numbers
+		      // (3) data in layers that are being compacted here and have
+	        //     smaller sequence numbers will be dropped in the next
+					//     few iterations of this loop (by rule (A) above).
+				  // Therefore this deletion marker is obsolete and can be dropped.
+			    drop = true;
+		    }
 
-      // If we're going to drop this key, and there was no previous version of
-      // this key, and it was written at or after the garbage cutoff, we keep
-      // it.
-      if (drop &&
-          last_sequence_for_key == kMaxSequenceNumber  &&
-          ikey.sequence >= manual_garbage_cutoff_) {
-        drop = false;
-      }
+	      // If we're going to drop this key, and there was no previous version of
+				// this key, and it was written at or after the garbage cutoff, we keep
+			  // it.
+		    if (drop &&
+	          last_sequence_for_key == kMaxSequenceNumber  &&
+						ikey.sequence >= manual_garbage_cutoff_) {
+					drop = false;
+				}
 
-      last_sequence_for_key = ikey.sequence;
-    }
+			  last_sequence_for_key = ikey.sequence;
+		  }
 
-    if (!drop) {
-      // Open output file if necessary
-      if (compact->builder == NULL) {
-        status = OpenCompactionOutputFile(compact);
-        if (!status.ok()) {
-          break;
-        }
-      }
-      if (compact->builder->NumEntries() == 0) {
-        compact->current_output()->smallest.DecodeFrom(key);
-      }
-      compact->current_output()->largest.DecodeFrom(key);
-      compact->builder->Add(key, input->value());
+	    if (!drop) {
+				// Open output file if necessary
+			  if (compact->builder == NULL) {
+		      status = OpenCompactionOutputFile(compact);
+	        if (!status.ok()) {
+					  break;
+			    }
+		    }
+	      if (compact->builder->NumEntries() == 0) {
+				  compact->current_output()->smallest.DecodeFrom(key);
+			  }
+		    compact->current_output()->largest.DecodeFrom(key);
+	      compact->builder->Add(key, input->value());
 
-      // Close output file if it is big enough
-      if (compact->builder->FileSize() >=
-          compact->compaction->MaxOutputFileSize()) {
-        status = FinishCompactionOutputFile(compact, input);
-        if (!status.ok()) {
-          break;
-        }
-      }
-    }
+				// Close output file if it is big enough
+			  if (compact->builder->FileSize() >=
+		        compact->compaction->MaxOutputFileSize()) {
+	        status = FinishCompactionOutputFile(compact, input);
+					if (!status.ok()) {
+				    break;
+			    }
+		    }
+	    }
 
-    input->Next();
-  }
+			input->Next();
+		}
 
-  if (status.ok() && shutting_down_.Acquire_Load()) {
-    status = Status::IOError("Deleting DB during compaction");
-  }
-  if (status.ok() && compact->builder != NULL) {
-    status = FinishCompactionOutputFile(compact, input);
-  }
-  if (status.ok()) {
-    status = input->status();
-  }
-  delete input;
-  input = NULL;
-#if MERGE
+	  if (status.ok() && shutting_down_.Acquire_Load()) {
+			status = Status::IOError("Deleting DB during compaction");
+		}
+	  if (status.ok() && compact->builder != NULL) {
+		  status = FinishCompactionOutputFile(compact, input);
+	  }
+	  if (status.ok()) {
+		  status = input->status();
+	  }
+		delete input;
+	  input = NULL;
 	}
-#endif
 #if TIME_W
 	int which = 0, level = 1;
 	if (status.ok()) {
@@ -1642,7 +1562,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 	}
 #endif
 
-#if MERGE
 	if (compact->merge_model && status.ok()) {
 #if TIME_W
 		koo::merge_bytesize += stats.bytes_written;
@@ -1698,14 +1617,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 				koo::mm_keys[c_->level()+1] += output.merge->num_entries;
 				koo::mm_segs[c_->level()+1] += new_model->string_segments.size() - 1;
 #endif
-/*#if MODEL_ACCURACY
-				std::shared_ptr<CurrentForRead> current_for_read = current_for_read_;
-			  Version* current = current_for_read->v();
-				//Version* current = versions_->current();
-				//current->Ref();
-				current->TestModelAccuracy(output.number, output.file_size);
-				//current->Unref();
-#endif*/
 			}
 			delete merge;
 		}
@@ -1715,7 +1626,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 		koo::num_mergetime++;
 #endif
 	}
-#endif
 
   mutex_.Lock();
   stats_[compact->compaction->level() + 1].Add(stats);

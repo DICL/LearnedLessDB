@@ -21,16 +21,9 @@
 #define LEARNING_ALL 0				// HyperBourbon(Always) (BOURBON_PLUS must be on)
 #define BOURBON_OFFLINE 0			// HyperWiscKey (BOURBON_PLUS must be on)
 
-#define YCSB_CXX 1
 #define YCSB_WRAPPER 1		// produce requests before run workloads + skip writing latency files
 #define YCSB_THROUGHPUTHIST 0	// record throughput history (no latency)
-#define YCSB_LOAD_THREAD 0
-//#define YCSB_LOAD_THREAD 16		// 다른 워크로드(A~F) 전 Load A의 client thread 개수 고정
-#define YCSB_KEY 0							// 키 생성 미리 안하고 operation 동작 직전에 키 생성(Load만)
-#define YCSB_MAKEKEYFILE 0
-#define YCSB_DB 0		// load db 똑같이 유지 (no read trigger compaction, load 끝나고 db 닫고 다시 열고 남은 compaction 다 하고 닫고 다시 열어서 워크로드) -> 실패
 #define YCSB_COPYDB 1		// SpanDB ycsb load 외 워크로드 전 db copy -> copy한 db에서 워크로드 실행
-#define OFFLINE_FILELEARN 0		// delete db시 남아있는 모든 sst 학습
 #define YCSB_SOSD 0
 
 #define VLOG 1
@@ -38,7 +31,6 @@
 #define MULTI_COMPACTION 1
 #define REMOVE_MUTEX 1			// shared_ptr로 Get 위한 current mem, imm, version 저장 REMOVE_MUTEX2->REMOVE_MUTEX
 #define REMOVE_MUTEX2 1			// SequenceWriteBegin mutex
-#define REMOVE_READTRIGGERCOMP 0
 
 #define LEARN 1					// common LEARN
 #define BLEARN 1				// LEARN for Bourbon
@@ -54,13 +46,9 @@
 #define AC_TEST_HISTORY 0
 #define BREAKDOWN 0
 #define TIME_W 0
-#define TIME_W_DETAIL 0
 #define TIME_R 0
 #define TIME_R_DETAIL 0
 #define TIME_R_LEVEL 0
-#define MULTI_COMPACTION_CNT 0
-#define MC_DEBUG 0
-#define TIME_MODELCOMP 0		// dbformat.h 주의
 #define SST_LIFESPAN 0	// level별 SST의 lifespan. table 생성(T) -> model 생성(M) -> model 사용(U)
 												// TODO workload 끝에 학습 취소되는 테이블들 계산에서 빼야함
 #define MODELCOMP_TEST 0
@@ -89,16 +77,6 @@ extern std::atomic<uint64_t> lm_keys[7];	// learned model # of keys
 extern std::atomic<uint64_t> lm_num[7];
 
 extern uint64_t num_lm[7];		// # of learned models
-#endif
-
-#if TIME_MODELCOMP
-extern uint64_t sum_micros;
-extern uint64_t sum_waittime;
-//extern std::atomic<uint64_t> sum_read;
-#endif
-
-#if YCSB_LOAD_THREAD
-extern bool only_load;
 #endif
 
 #if THREADSAFE
@@ -155,7 +133,6 @@ class RWLock {
 #endif
 
 #if SST_LIFESPAN
-// TODO start time을 hashmap에 기록? FileMetaData에 기록?
 struct FileLifespanData {
 	bool learned;
 	uint32_t level;
@@ -194,22 +171,6 @@ extern uint32_t num_inputs_compaction_triggered_after_load;			// input files
 extern uint32_t num_outputs_compaction_triggered_after_load;		// output files
 extern int64_t size_inputs_compaction_triggered_after_load;			// input files
 extern int64_t size_outputs_compaction_triggered_after_load;		// output files
-#if TIME_W_DETAIL
-extern uint64_t compactiontime_d[5];
-extern uint32_t num_compactiontime_d[5];
-extern uint64_t bc_d[5];
-extern uint32_t num_bc_d[5];
-
-extern uint64_t time_filldata;
-extern uint32_t num_filldata;
-#endif
-#if MC_DEBUG
-/*extern uint32_t id_twait;
-extern uint64_t time_twait[8];
-extern uint32_t num_twait[8];*/
-extern std::atomic<uint64_t> time_tAppend;
-extern std::atomic<uint32_t> num_tAppend;
-#endif
 #endif
 
 #if TIME_W
@@ -252,13 +213,6 @@ extern std::atomic<uint32_t> num_i_path_l[7];
 extern std::atomic<uint32_t> num_m_path_l[7];
 extern std::atomic<uint64_t> i_path_l[7];
 extern std::atomic<uint64_t> m_path_l[7];
-#endif
-
-#if MULTI_COMPACTION_CNT
-extern uint64_t num_PickCompactionLevel;
-extern uint64_t num_PickCompaction;
-extern uint64_t num_compactions;
-extern uint64_t num_output_files;
 #endif
 
 #if MODELCOMP_TEST 

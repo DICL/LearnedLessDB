@@ -100,9 +100,6 @@ class DBImpl : public DB {
 	std::atomic<int> version_count;
 	Version* GetCurrentVersion();
 	void ReturnCurrentVersion(Version* version);
-#if YCSB_DB
-	void WaitForBackground();
-#endif
 #if THREADSAFE
 	const std::string GetDBName() { return dbname_;	}
 #endif

@@ -1,0 +1,90 @@
+#!/bin/bash
+# YCSB_SOSD on
+
+set -e
+set -o pipefail
+
+
+##
+# *** WORKLOAD CONFIGURATION ***
+recordcount=$((600*1000*1000))  # 100 M
+recordcount2=$((200*1000*1000))  # 100 M
+operationcount=$((10*1000*1000))  # 10 M
+#field_len=100
+#field_cnt=10  # value: 10*100 =~ 1 KB
+field_len=64
+field_cnt=1  # value: 10*100 =~ 1 KB
+#num_threads=10
+#req_dist="uniform"
+
+##
+# build
+cd ../build
+cmake --build . -- -j
+cd -
+ycsb=../build/ycsb
+date="05.18"
+db="hyperbourbon-always"
+#db="hyperbourbon-offline"
+#db="hyperbourbon-cba"
+
+num_threads=32
+
+for num in 1 2 3 4; do
+
+	for req_dist in sosd_fb sosd_wiki; do
+		rm -rf /mnt-koo/db/*
+		sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
+		$ycsb \
+			--recordcount=${recordcount2} \
+	    --operationcount=${operationcount} \
+		  --fieldlength=${field_len} \
+			--fieldcount=${field_cnt} \
+			--threads=${num_threads} \
+		  --workloads="l" \
+			--distribution=${req_dist} > /koo/tests/${db}/${date}/${req_dist}_200M-64Bvalue_t${num_threads}_LearnT4-${num}.txt
+
+		for num2 in 1 2; do
+			for wl in x y z c; do
+				sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
+				$ycsb \
+					--recordcount=${recordcount2} \
+			    --operationcount=${operationcount} \
+				  --fieldlength=${field_len} \
+					--fieldcount=${field_cnt} \
+					--threads=${num_threads} \
+				  --workloads=${wl} \
+					--distribution=${req_dist} > /koo/tests/${db}/${date}/${req_dist}_${wl}_200M-64Bvalue_10M_t${num_threads}_LearnT4-${num}${num2}.txt
+			done
+		done
+	done
+
+	for req_dist in sosd_osm sosd_normal sosd_lognormal sosd_uniform_dense sosd_uniform_sparse sosd_books; do
+		rm -rf /mnt-koo/db/*
+		sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
+		$ycsb \
+			--recordcount=${recordcount} \
+	    --operationcount=${operationcount} \
+		  --fieldlength=${field_len} \
+			--fieldcount=${field_cnt} \
+			--threads=${num_threads} \
+		  --workloads="l" \
+			--distribution=${req_dist} > /koo/tests/${db}/${date}/${req_dist}_600M-64Bvalue_t${num_threads}_LearnT4-${num}.txt
+
+		for num2 in 1 2; do
+			for wl in x y z c; do
+				sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
+				$ycsb \
+					--recordcount=${recordcount} \
+			    --operationcount=${operationcount} \
+				  --fieldlength=${field_len} \
+					--fieldcount=${field_cnt} \
+					--threads=${num_threads} \
+				  --workloads=${wl} \
+					--distribution=${req_dist} > /koo/tests/${db}/${date}/${req_dist}_${wl}_600M-64Bvalue_10M_t${num_threads}_LearnT4-${num}${num2}.txt
+			done
+		done
+	done
+
+
+done

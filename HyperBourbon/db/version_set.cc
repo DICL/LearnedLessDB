@@ -1053,9 +1053,6 @@ VersionSet::VersionSet(const std::string& dbname,
 VersionSet::~VersionSet() {
 #if LEARN
 #if BOURBON_OFFLINE
-#if OFFLINE_FILELEARN
-	current_->WriteModel();
-#endif
 #else
 	current_->WriteModel();
 	//std::cout << "\nwrite_buffer_size: " << Options().write_buffer_size << std::endl;
@@ -1879,9 +1876,6 @@ Compaction* VersionSet::PickCompaction(Version* v, unsigned level) {
 	RegisterCompaction(c);
 	Finalize(c->input_version_);
 #endif
-#if MULTI_COMPACTION_CNT
-	koo::num_compactions++;
-#endif
   return c;
 }
 /*#endif*/
@@ -1968,9 +1962,6 @@ Compaction* VersionSet::CompactRange(
 	c->MarkFilesBeingCompacted(true);
 	RegisterCompaction(c);
 	Finalize(c->input_version_);
-#endif
-#if MULTI_COMPACTION_CNT
-	koo::num_compactions++;
 #endif
   return c;
 }
@@ -2132,22 +2123,6 @@ void Version::ReadModel() {
 		}
 	}
 }
-
-#if OFFLINE_FILELEARN
-void Version::OfflineFileLearn() {
-	printf("Offline FileLearn()\n");
-	for (int i=0; i<config::kNumLevels; ++i) {
-		for (auto* meta : files_[i]) {
-			FileMetaData* meta_ = new FileMetaData();
-			meta_->number = meta->number;
-			meta_->file_size = meta->file_size;
-			meta_->smallest = meta->smallest;
-			meta_->largest = meta->largest;
-			koo::LearnedIndexData::FileLearn(new koo::MetaAndSelf{this, koo::db->version_count, meta_, koo::file_data->GetModel(meta_->number), i});
-		}
-	}
-}
-#endif
 
 #if MODEL_ACCURACY
 void Version::TestModelAccuracy(uint64_t& file_number, uint64_t& file_size) {

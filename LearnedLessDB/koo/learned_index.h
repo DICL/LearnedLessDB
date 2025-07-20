@@ -80,11 +80,9 @@ namespace koo {
 #if MODEL_COMPACTION
 				port::Mutex mutex_delete_;
 #endif
-#if MERGE
 				bool merged;
 #if RETRAIN
 				std::atomic<bool> retraining;
-#endif
 #endif
     public:
 				uint64_t file_number;
@@ -131,7 +129,6 @@ namespace koo {
 //        double gain_p = 0;
 //        uint64_t file_size = 0;
 
-#if MERGE
 #if RETRAIN
         explicit LearnedIndexData(uint64_t number) : file_number(number), error(koo::learn_model_error), learned(false), 
 						deleted(false), deleted_not_atomic(false),
@@ -144,11 +141,6 @@ namespace koo {
 						aborted(false), learning(false), learned_not_atomic(false), filled(false), level(0), cost(0), 
 						merged(false) {};
 #endif				// RETRAIN
-#else						// MERGE
-        explicit LearnedIndexData(uint64_t number) : file_number(number), error(koo::learn_model_error), learned(false), 
-						deleted(false), deleted_not_atomic(false),
-						aborted(false), learning(false), learned_not_atomic(false), filled(false), level(0), cost(0) {};
-#endif					// MERGE
 
         LearnedIndexData(const LearnedIndexData& other) = delete;
         ~LearnedIndexData();
@@ -159,25 +151,19 @@ namespace koo {
         // If the key is in the training set, the output interval guarantees to include the key
         // otherwise, the output is undefined!
         // If the output lower bound is larger than MaxPosition(), the target key is not in the file
-#if MERGE
         std::pair<uint64_t, uint64_t> GetPosition(Slice& key);
-#else
-        std::pair<uint64_t, uint64_t> GetPosition(const Slice& key) const;
-#endif
         uint64_t MaxPosition() const;
         double GetError() const;
 #if RETRAIN2
         void SetError(double cur_error, uint64_t extra_error);
 #endif
 
-#if MERGE
 				void SetMergedModel(std::vector<Segment>& segs);
 				bool Merged();
 #if RETRAIN
 				void FreezeModel();
 				void UnfreezeModel();
 				bool SetRetraining();
-#endif
 #endif
         
         // Learning function and checker (check if this model is available)

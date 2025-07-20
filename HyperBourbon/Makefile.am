@@ -199,8 +199,6 @@ TESTHARNESS = util/testharness.cc $(TESTUTIL)
 
 noinst_PROGRAMS =
 noinst_PROGRAMS += db_bench
-noinst_PROGRAMS += read_cold_ycsb #KOO READCOLD
-noinst_PROGRAMS += sosd #KOO SOSD
 noinst_PROGRAMS += leveldbutil
 noinst_PROGRAMS += leveldb-verify
 
@@ -241,12 +239,6 @@ benchmark_LDFLAGS = -no-install
 
 db_bench_SOURCES = db/db_bench.cc $(TESTUTIL)
 db_bench_LDADD = libhyperleveldb.la -lpthread
-
-read_cold_ycsb_SOURCES = koo/read_cold_ycsb.cc $(TESTUTIL)	#KOO READCOLD
-read_cold_ycsb_LDADD = libhyperleveldb.la -lpthread
-
-sosd_SOURCES = koo/sosd.cc $(TESTUTIL)	#KOO SOSD
-sosd_LDADD = libhyperleveldb.la -lpthread
 
 db_bench_sqlite3_SOURCES = doc/bench/db_bench_sqlite3.cc $(TESTUTIL)
 db_bench_sqlite3_LDADD = -lsqlite3

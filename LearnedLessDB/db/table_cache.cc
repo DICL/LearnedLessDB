@@ -220,9 +220,7 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
   	cache_->Release(handle);
   	return s;
 	}
-#if MERGE
 	bool isMergedModel = model->Merged();
-#endif
 
   // Get the position we want to read
   // Get the data block index
@@ -287,7 +285,6 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
   Slice key(key_ptr, non_shared), value(key_ptr + non_shared, value_length);
   saver(arg, key, value);
 
-#if MERGE
 	Saver* saver_ = reinterpret_cast<Saver*>(arg);
 	if (isMergedModel && saver_->state == kNotFound) {		// Linear search on data blocks + retrain if needed
 #if AC_TEST2
@@ -375,28 +372,17 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 	  if (i != i_) {
 	  	pos_block_lower2 = 0;
 	  	pos_block_upper2 = (i_ == index_max) ? max_upper % koo::block_num_entries : koo::block_num_entries - 1;
-			/*if (pos_block_lower2 > pos_block_upper2) {			// TODO 꽤 많이 나온다
-				//std::cout << __LINE__ << " db/table_cache.cc " << pos_block_lower2 << " " << pos_block_upper2 << std::endl;
-				cache_->Release(handle);
-				return s;
-			}*/
 		} else {
 			if (next) {
 				pos_block_lower2 = pos_block_upper + 1;
 				pos_block_upper2 = (i_ == index_max) ? max_upper % koo::block_num_entries : koo::block_num_entries - 1;
-				if (pos_block_lower2 > pos_block_upper2) {		// TODO		여기서만 나온다!
-					//std::cout << __LINE__ << " db/table_cache.cc " << pos_block_lower2 << " " << pos_block_upper2 << " " << i_ << " " << index_max << " " << max_upper << " " << koo::block_num_entries << std::endl;
+				if (pos_block_lower2 > pos_block_upper2) {
 					cache_->Release(handle);
 					return s;
 				}
 			} else {
 				pos_block_lower2 = 0;
 				pos_block_upper2 = pos_block_lower - 1;
-				/*if (pos_block_lower2 > pos_block_upper2) {		// TODO
-					//std::cout << __LINE__ << " db/table_cache.cc " << pos_block_lower2 << " " << pos_block_upper2 << std::endl;
-					cache_->Release(handle);
-					return s;
-				}*/
 			}
 		}
 
@@ -443,7 +429,7 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 	    else right = mid;
 		}
 
-#if RETRAIN2		// TODO 그냥 위에서 +5, +10 정도로 바로 바꾸고 여기서 수정 혹은 52 넘는지 체크만?
+#if RETRAIN2
 		double extra_error = -1;
 		if (i == i_) {
 			if (next) extra_error = left - pos_block_lower2 + 1;
@@ -454,11 +440,9 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 		}
 		double cur_error = model->GetError();
 		if (extra_error == -1 ||
-				//extra_error + cur_error > 35) {		// Retrain
 				extra_error + cur_error > 51) {		// Retrain
-			//model->FreezeModel();			// run_sosd nofreeze
 			model->SetError(cur_error, 51 - cur_error);		// run_sosd seterror
-			if (model->SetRetraining()) {		// run_sosd noretrain시 주석처리
+			if (model->SetRetraining()) {
 				FileMetaData* meta_ = new FileMetaData();
 				meta_->number = file_number;
 				meta_->file_size = meta->file_size;
@@ -474,23 +458,13 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 			koo::num_tryretraining++;
 #endif
 		}
-		//if (extra_error == -1 || extra_error + cur_error > 51) model->FreezeModel();
 		else {
 			if (extra_error+10+cur_error > 51) model->SetError(cur_error, extra_error);
 			else model->SetError(cur_error, extra_error+10);
 #if AC_TEST
 			koo::num_erroradded++;
-			//model->extended_cnt++;
 #endif
 		}
-
-		/*if (extra_error != -1) {	// YCSB_DB
-			if (extra_error+10+cur_error > 51) model->SetError(cur_error, extra_error);
-			else model->SetError(cur_error, extra_error+10);
-#if AC_TEST
-			koo::num_erroradded++;
-#endif
-		}*/
 #endif
 
 		// decode the target entry to get the key and value (actually value_addr)
@@ -546,7 +520,6 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 #endif
 		return s;
 	}
-#endif
 
 	cache_->Release(handle);
 #if LOOKUP_ACCURACY

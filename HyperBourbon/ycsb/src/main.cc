@@ -1,5 +1,3 @@
-//#include "rocksdb/options.h"
-//#include "/koo/Bourbon/include/rocksdb/options.h"
 #include "hyperleveldb/options.h"
 #include "src/rocksdb_client.h" 
 #include "src/config.h"
@@ -36,13 +34,7 @@ int main(int argc, char* argv[]){
     workloads.push_back(wl);
   }
 
-	//for (const auto& entry : std::experimental::filesystem::directory_iterator("/mnt-koo/"))			// KOO
-		//std::experimental::filesystem::remove_all(entry.path());
-  //for (const auto& entry : std::experimental::filesystem::directory_iterator("/koo/HyperLevelDB-Learningless/koo/data/"))			// KOO
-  	//std::experimental::filesystem::remove_all(entry.path());
-
   // dbpath
-  //std::string dbpath("/koo/ycsb_data");		// SATA Disk
   std::string dbpath("/mnt-koo");				// NVMe SSD
   std::string data_dir = dbpath + "/db";
 

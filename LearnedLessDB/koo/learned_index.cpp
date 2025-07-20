@@ -18,11 +18,7 @@
 namespace koo {
 
 std::pair<uint64_t, uint64_t> LearnedIndexData::GetPosition(
-#if MERGE
     Slice& target_x) {
-#else
-    const Slice& target_x) const {
-#endif
 #if RETRAIN
   assert(string_segments.size() > 1 || string_segments_bak.size() > 1);
 #else
@@ -73,12 +69,10 @@ std::pair<uint64_t, uint64_t> LearnedIndexData::GetPosition(
       result - error > 0 ? (uint64_t)std::floor(result - error) : 0;
   uint64_t upper = (uint64_t)std::ceil(result + error);
 	upper = upper < size ? upper : size - 1;
-#if MERGE
 	if (lower >= size) {
 		if (merged) lower = upper - 2*error - 1;
 		else return std::make_pair(size, size);
 	}
-#endif
 
   return std::make_pair(lower, upper);
 }
@@ -96,7 +90,6 @@ void LearnedIndexData::SetError(double cur_error, uint64_t extra_error) {
 }
 #endif
 
-#if MERGE
 void LearnedIndexData::SetMergedModel(std::vector<Segment>& segs) {
 	error = koo::merge_model_error;
 	merged = true;
@@ -127,7 +120,6 @@ bool LearnedIndexData::SetRetraining() {
 	if (!retraining.compare_exchange_weak(try_retraining, !try_retraining)) return false;
 	return true;
 }
-#endif
 #endif
 
 // Actual function doing learning
@@ -169,10 +161,8 @@ bool LearnedIndexData::Learn() {
 #endif
   if (segs.empty()) return false;
   if (Deleted()) return false;
-#if MERGE
 	if (segs.front().x != min_key) segs.front().x = min_key;
 	if (segs.back().x_last != max_key) segs.back().x_last = max_key;
-#endif
   // fill in a dummy last segment (used in segment binary search)
   segs.push_back((Segment){max_key, 0, 0, 0, 0});
 
@@ -310,7 +300,6 @@ bool LearnedIndexData::FillData(Version* version, FileMetaData* meta) {
 
 void LearnedIndexData::WriteModel(const string& filename) {
   if (Deleted() || !learned.load()) return;
-#if MERGE
 	std::ofstream ofs(filename, std::ios::binary);
 	ofs.write(reinterpret_cast<const char*>(&koo::block_num_entries), sizeof(uint64_t));
 	ofs.write(reinterpret_cast<const char*>(&koo::block_size), sizeof(uint64_t));
@@ -340,19 +329,6 @@ void LearnedIndexData::WriteModel(const string& filename) {
 #endif
 
 	ofs.close();
-#else
-  std::ofstream output_file(filename);
-  output_file.precision(15);
-  output_file << koo::block_num_entries << " " << koo::block_size << " "
-              << koo::entry_size << "\n";
-  for (Segment& item : string_segments) {
-    output_file << item.x << " " << item.k << " " << item.b << " " 
-				<< item.x_last << " " << item.y_last << "\n";
-  }
-  output_file << "StartAcc"
-              << " " << min_key << " " << max_key << " " << size << " " << level
-              << " " << cost << "\n";
-#endif
 
 #if MODEL_BREAKDOWN
 	if (merged) koo::num_mm[level]++;
@@ -362,7 +338,6 @@ void LearnedIndexData::WriteModel(const string& filename) {
 
 void LearnedIndexData::ReadModel(const string& filename, Version* v, FileMetaData* meta) {
   if (learned.load()) return;
-#if MERGE
 	std::ifstream ifs(filename, std::ios::binary);
 	if (!ifs.good()) return;
 	ifs.read(reinterpret_cast<char*>(&koo::block_num_entries), sizeof(uint64_t));
@@ -400,32 +375,6 @@ void LearnedIndexData::ReadModel(const string& filename, Version* v, FileMetaDat
 #endif
 
 	ifs.close();
-
-#else
-  std::ifstream input_file(filename);
-
-  if (!input_file.good()) return;
-  input_file >> koo::block_num_entries >> koo::block_size >>
-      koo::entry_size;
-  while (true) {
-    string x;
-    double k, b;
-    uint64_t x_last;
-    uint32_t y_last;
-    input_file >> x;
-    if (x == "StartAcc") break;
-    input_file >> k >> b >> x_last >> y_last;
-    string_segments.emplace_back(atoll(x.c_str()), k, b, x_last, y_last);
-  }
-  input_file >> min_key >> max_key >> size >> level >> cost;
-  while (true) {
-    uint64_t first;
-    string second;
-    if (!(input_file >> first >> second)) break;
-    //num_entries_accumulated.Add(first, std::move(second));
-  }
-#endif
-
   learned.store(true);
 }
 

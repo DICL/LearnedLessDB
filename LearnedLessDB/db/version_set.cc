@@ -282,26 +282,6 @@ void Version::AddSomeIterators(const ReadOptions& options, uint64_t num,
 }
 
 // Callback from TableCache::Get()
-#if !MERGE
-namespace {
-enum SaverState {
-  kNotFound,
-  kFound,
-  kDeleted,
-  kCorrupt
-};
-struct Saver {
-  Saver() : state(), ucmp(), user_key(), value() {}
-  SaverState state;
-  const Comparator* ucmp;
-  Slice user_key;
-  std::string* value;
- private:
-  Saver(const Saver&);
-  Saver& operator = (const Saver&);
-};
-}
-#endif
 static void SaveValue(void* arg, const Slice& ikey, const Slice& v) {
   Saver* s = reinterpret_cast<Saver*>(arg);
   ParsedInternalKey parsed_key;
@@ -1788,11 +1768,7 @@ void Version::WriteModel() {
 			auto* model = koo::file_data->GetModel(meta->number);
 			if (model != nullptr && model->Learned()) {
 				model->WriteModel(
-#if MERGE
 						vset_->dbname_ + koo::model_dbname + "/" + std::to_string(meta->number) + ".model");
-#else
-						vset_->dbname_ + "/" + std::to_string(meta->number) + ".model");
-#endif
 #if MODEL_ACCURACY
 				if (model->Merged()) {
 					TestModelAccuracy(meta->number, meta->file_size);
@@ -1815,11 +1791,7 @@ void Version::ReadModel() {
 	for (int i=0; i<config::kNumLevels; ++i) {
 		for (auto* meta : files_[i]) {
 			koo::file_data->GetModel(meta->number)->ReadModel(
-#if MERGE
 						vset_->dbname_ + koo::model_dbname + "/" + std::to_string(meta->number) + ".model", this, meta);
-#else
-						vset_->dbname_ + "/" + std::to_string(meta->number) + ".model", this, meta);
-#endif
 		}
 	}
 }

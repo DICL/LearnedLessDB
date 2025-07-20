@@ -38,10 +38,6 @@ std::pair<uint64_t, uint64_t> LearnedIndexData::GetPosition(
       left = mid;
   }
 
-	// TODO x보다 1 작은 키 찾는 버그
-  /*if (left < (uint32_t)string_segments.size()-1 && target_int+1 == string_segments[left+1].x)
-  	left++;*/
-
   // calculate the interval according to the selected segment
   double result =
       target_int * string_segments[left].k + string_segments[left].b;
@@ -154,15 +150,7 @@ uint64_t LearnedIndexData::FileLearn(void* arg) {
   self->level = mas->level;
 
   Version* c = db->GetCurrentVersion();
-#if TIME_W_DETAIL
-	std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
   if (self->FillData(c, mas->meta)) {
-#if TIME_W_DETAIL
-		std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-		koo::time_filldata += nano.count();
-		koo::num_filldata++;
-#endif
 #if TIME_W
 		std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
 #endif

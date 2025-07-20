@@ -1,49 +1,9 @@
 #include "rocksdb_client.h"
 #include "algorithm"
 #include "math.h"
-
-//#include "util/random.h"
 #include "koo/koo.h"
 
 namespace ycsbc {
-
-/*class RandomGenerator {
-private:
-	std::string data_;
-	int pos_;
-
-public:
-	RandomGenerator() {
-		leveldb::Random rnd(301);
-		std::string piece;
-		size_t len = 100;
-		int raw = static_cast<int>(len);			// CompressibleString()
-		while (data_.size() < 1048576) {
-			std::string raw_data;				// RandomString()
-			raw_data.resize(raw);
-			for (int i=0; i<raw; i++) {
-				raw_data[i] = static_cast<char>(' ' + rnd.Uniform(95));
-			}
-			piece.clear();
-			while (piece.size() < len) {
-				piece.append(raw_data);
-			}
-			piece.resize(len);
-
-			data_.append(piece);
-		}
-		pos_ = 0;
-	}
-
-	leveldb::Slice Generate(size_t len) {
-		if (pos_ + len > data_.size()) {
-			pos_ = 0;
-			if (!(len < data_.size())) std::cout << "ERROR RandomGenerator!!!!\n";
-		}
-		pos_ += len;
-		return leveldb::Slice(data_.data() + pos_ - len, len);
-	}
-};*/
 
 #if YCSB_WRAPPER
 RocksDBClient::RocksDBClient(WorkloadProxy* workload_proxy, int num_threads,
@@ -78,21 +38,9 @@ RocksDBClient::RocksDBClient(WorkloadProxy* workload_proxy, int num_threads,
     //write_finished(0),
     //read_finished(0) {
 #if YCSB_THROUGHPUTHIST
-#if YCSB_LOAD_THREAD
-	if (workload_proxy_->is_load() && !koo::only_load) {
-		for (int i = 0; i < YCSB_LOAD_THREAD; i++) {
-			td_[i] = (thread_data*) aligned_alloc(64, sizeof(thread_data));
-	  }
-	} else {
-		for (int i = 0; i < num_threads_; i++) {
-			td_[i] = (thread_data*) aligned_alloc(64, sizeof(thread_data));
-	  }
-	}
-#else
   for (int i = 0; i < num_threads_; i++) {
     td_[i] = (thread_data*) aligned_alloc(64, sizeof(thread_data));
   }
-#endif
 #endif
 #if !YCSB_COPYDB
   if (!db_) {
@@ -126,20 +74,9 @@ RocksDBClient::~RocksDBClient() {
 void RocksDBClient::run() { 
   if (workload_proxy_->is_load()) {
     Load();
-/*#if YCSB_DB
-		printf("time: %s\n", GetDayTime().c_str());
-		db_->WaitForBackground();
-		std::string stat_str2;
-	 	db_->GetProperty("leveldb.stats", &stat_str2);
-		printf("\n%s\n", stat_str2.c_str());
-		printf("time: %s\n", GetDayTime().c_str());
-		fflush(stdout);
-#endif*/
   } else {
     Work();
   }
-  //koo::Report();
-  //koo::Reset();
 }
 
 void RocksDBClient::Load(){
@@ -151,56 +88,26 @@ void RocksDBClient::Load(){
 
 	int base_coreid = 0;
 
-#if !YCSB_KEY
 	if (workload_wrapper_ == nullptr){
 		workload_wrapper_ = new WorkloadWrapper(workload_proxy_, load_num_, true);
 	}
-#endif
 
   // perfmon
 #if YCSB_THROUGHPUTHIST
-#if YCSB_LOAD_THREAD
-  std::thread perfmon_thread;
-  if (koo::only_load)
-  	perfmon_thread = std::thread(std::bind(&RocksDBClient::perfmon_loop, this));
-#else
   std::thread perfmon_thread = std::thread(std::bind(&RocksDBClient::perfmon_loop, this));
 #endif
-#endif
 
-#if YCSB_LOAD_THREAD
-	uint64_t num;
-	if (koo::only_load) num = load_num_ / num_threads_;
-	else num = load_num_ / YCSB_LOAD_THREAD;
-#else
 	uint64_t num = load_num_ / num_threads_;
-#endif
 	std::vector<std::thread> threads;
 	auto fn = std::bind(&RocksDBClient::RocksdDBLoader, this, 
 						std::placeholders::_1, std::placeholders::_2);
 	printf("start time: %s\n", GetDayTime().c_str());
 	auto start = TIME_NOW;
-#if YCSB_LOAD_THREAD
-	if (koo::only_load) {
-		for(int i=0; i<num_threads_; i++){
-			if(i == num_threads_ - 1)
-				num = num + load_num_ % num_threads_;
-			threads.emplace_back(fn, num, (base_coreid + i));
-		}
-	} else {
-		for(int i=0; i<YCSB_LOAD_THREAD; i++){
-			if(i == YCSB_LOAD_THREAD - 1)
-				num = num + load_num_ % YCSB_LOAD_THREAD;
-			threads.emplace_back(fn, num, (base_coreid + i));
-		}
-	}
-#else
 	for(int i=0; i<num_threads_; i++){
 		if(i == num_threads_ - 1)
 			num = num + load_num_ % num_threads_;
 		threads.emplace_back(fn, num, (base_coreid + i));
 	}
-#endif
 	for(auto &t : threads) {
 		t.join();
 	}
@@ -208,27 +115,10 @@ void RocksDBClient::Load(){
 	printf("end time: %s\n", GetDayTime().c_str());
 #if YCSB_THROUGHPUTHIST
   stop_.store(true);
-#if YCSB_LOAD_THREAD
-  if (koo::only_load && perfmon_thread.joinable()) perfmon_thread.join();
-#else
   if (perfmon_thread.joinable()) perfmon_thread.join();
-#endif
 #endif
 
 	printf("==================================================================\n");
-#if YCSB_LOAD_THREAD
-	if (koo::only_load) {
-		printf("Load Clients: %d\n", num_threads_);
-		PrintArgs();
-		printf("Load %ld requests in %.3lf seconds.\n", load_num_, time/1000/1000);
-		printf("Load latency: %.3lf us\n", update_time_->Sum()/update_time_->Size());
-		printf("Load median latency: %.3lf us\n", update_time_->Tail(0.5));
-		printf("Load P999: %.3lfus, P99: %.3lfus, P95: %.3lfus, P90: %.3lfus, P75: %.3lfus\n",
-				update_time_->Tail(0.999), update_time_->Tail(0.99), update_time_->Tail(0.95),
-			    update_time_->Tail(0.90), update_time_->Tail(0.75));
-		printf("------------------------------------------------------------------\n");
-	} else printf("Load Clients: %d\n", YCSB_LOAD_THREAD);
-#else
 	PrintArgs();
 	printf("Load %ld requests in %.3lf seconds.\n", load_num_, time/1000/1000);
 #if !YCSB_WRAPPER
@@ -240,23 +130,14 @@ void RocksDBClient::Load(){
 		    update_time_->Tail(0.90), update_time_->Tail(0.75));
 #endif
 	printf("------------------------------------------------------------------\n");
-#endif
   printf("Load %c - IOPS: %.3lf M\n", workload_proxy_->name_str().back(), load_num_/time*1000*1000/1000/1000);
 	printf("time: %s\n", GetDayTime().c_str());
 	printf("==================================================================\n");
 	fflush(stdout);
-#if YCSB_LOAD_THREAD
-	if (koo::only_load) {
-		std::string stat_str2;
-	 	db_->GetProperty("leveldb.stats", &stat_str2);
-		printf("\n%s\n", stat_str2.c_str());
-	}
-#else
 #if !YCSB_WRAPPER
 	std::string stat_str2;
  	db_->GetProperty("leveldb.stats", &stat_str2);
  	printf("\n%s\n", stat_str2.c_str());
-#endif
 #endif
 
   // Record results to a file
@@ -400,12 +281,6 @@ void RocksDBClient::RocksDBWorker(uint64_t num, int coreid, bool is_master){
 	TimeRecord read_time(num + 1);
 	TimeRecord update_time(num + 1);
 #endif
-#if YCSB_MAKEKEYFILE
-	std::string dist = workload_proxy_->name_str();
-	dist = dist.substr(9);
-	std::ofstream ofs("/koo/dataset/ycsb_SpanDB/lc_500M_10M_K16/"+dist+".txt");
-	if (!ofs.good()) { fprintf(stderr, "!ofs.good()\n"); exit(1); }
-#endif
 
 	if(is_master){
 		printf("starting requests...\n");
@@ -432,31 +307,19 @@ void RocksDBClient::RocksDBWorker(uint64_t num, int coreid, bool is_master){
 			if (!ec.ok()) {
 				fprintf(stdout, "Get Failed %s:%d: %s\n", __FILE__, __LINE__, ec.ToString().c_str());
 			}
-#if YCSB_MAKEKEYFILE
-			ofs << "2 " << req->Key() << "\n";
-#endif
 		}else if(opt == UPDATE){
       leveldb::Slice w_value(w_value_buf, req->Length());
 			ERR(db_->Put(write_options_, req->Key(), w_value));
 			//ERR(db_->Put(write_options_, req->Key(), gen.Generate(req->Length())));
-#if YCSB_MAKEKEYFILE
-			ofs << "1 " << req->Key() << "\n";
-#endif
 		}else if(opt == INSERT){
       leveldb::Slice w_value(w_value_buf, req->Length());
 			ERR(db_->Put(write_options_, req->Key(), w_value));
 			//ERR(db_->Put(write_options_, req->Key(), gen.Generate(req->Length())));
-#if YCSB_MAKEKEYFILE
-			ofs << "0 " << req->Key() << "\n";
-#endif
 		}else if(opt == READMODIFYWRITE){
 			ERR(db_->Get(read_options_, req->Key(), &r_value));
       leveldb::Slice w_value(w_value_buf, req->Length());
 			ERR(db_->Put(write_options_, req->Key(), w_value));
 			//ERR(db_->Put(write_options_, req->Key(), gen.Generate(req->Length())));
-#if YCSB_MAKEKEYFILE
-			ofs << "4 " << req->Key() << "\n";
-#endif
 		}else if(opt == SCAN){
 			leveldb::Iterator* iter = db_->NewIterator(read_options_);
 			iter->Seek(req->Key());
@@ -466,9 +329,6 @@ void RocksDBClient::RocksDBWorker(uint64_t num, int coreid, bool is_master){
     		}
     		ERR(iter->status());
     		delete iter;
-#if YCSB_MAKEKEYFILE
-			ofs << "3 " << req->Key() << "\n";
-#endif
 		}else{
 			throw utils::Exception("Operation request is not recognized!");
 		}
@@ -519,9 +379,6 @@ void RocksDBClient::RocksDBWorker(uint64_t num, int coreid, bool is_master){
 	//printf("%s\n\n",rocksdb::get_iostats_context()->ToString().c_str());
 	mutex_.unlock();
 #endif
-#if YCSB_MAKEKEYFILE
-	ofs.close();
-#endif
 }
 
 void RocksDBClient::RocksdDBLoader(uint64_t num, int coreid){
@@ -537,28 +394,12 @@ void RocksDBClient::RocksdDBLoader(uint64_t num, int coreid){
 	TimeRecord request_time(num + 1);
 	TimeRecord update_time(num + 1);
 #endif
-#if YCSB_MAKEKEYFILE
-	std::ofstream ofs("/koo/dataset/ycsb_SpanDB/lc_500M_10M_K16/Load.txt");
-	if (!ofs.good()) { fprintf(stderr, "!ofs.good()\n"); exit(1); }
-#endif
 
   static char w_value_buf[4096];
   //memset(w_value_buf, 'a', 4096);
   for (int i=0; i<4096; i++) w_value_buf[i] = (char)i;
-#if YCSB_KEY
-  size_t value_len = workload_proxy_->ValueLen();
-#endif
-  //RandomGenerator gen;								// db_bench value generator
-
 	for(uint64_t i=0; i<num; i++){		
-#if YCSB_KEY
-		std::string key;
-		workload_proxy_->LoadInsertArgs(key);
-		leveldb::Slice w_value(w_value_buf, value_len);
-		ERR(db_->Put(write_options_, key, w_value));
-#else
 		WorkloadWrapper::Request *req = workload_wrapper_->GetNextRequest();
-		//std::cout << sizeof(struct WorkloadWrapper::Request) << std::endl;
 #if !YCSB_WRAPPER
 		ycsbc::Operation opt = req->Type();
 		assert(req != nullptr);
@@ -567,12 +408,6 @@ void RocksDBClient::RocksdDBLoader(uint64_t num, int coreid){
 #endif
     leveldb::Slice w_value(w_value_buf, req->Length());
     ERR(db_->Put(write_options_, req->Key(), w_value));
-    //ERR(db_->Put(write_options_, req->Key(), gen.Generate(req->Length())));
-//fprintf(stderr, "load key: %s\n", req->Key().c_str());
-#endif
-#if YCSB_MAKEKEYFILE
-		ofs << "0 " << req->Key() << "\n";
-#endif
 #if !YCSB_WRAPPER
     double time = TIME_DURATION(start, TIME_NOW);
     request_time.Insert(time);
@@ -597,9 +432,6 @@ void RocksDBClient::RocksdDBLoader(uint64_t num, int coreid){
 	//write_memtable_time_ += rocksdb::get_perf_context()->write_memtable_time/1000.0;
 	mutex_.unlock();
 #endif
-#if YCSB_MAKEKEYFILE
-	ofs.close();
-#endif
 }
 
 void RocksDBClient::Reset(){
@@ -616,27 +448,11 @@ void RocksDBClient::Reset(){
 #endif
 
 #if YCSB_THROUGHPUTHIST
-#if YCSB_LOAD_THREAD
-	if (workload_proxy_->is_load() && !koo::only_load) {
-		for (int i = 0; i < YCSB_LOAD_THREAD; i++) {
-			if (td_[i]) {
-				memset(td_[i], 0, sizeof(thread_data));
-	    }
-		}
-	} else {
-		for (int i = 0; i < num_threads_; i++) {
-			if (td_[i]) {
-				memset(td_[i], 0, sizeof(thread_data));
-	    }
-		}
-	}
-#else
   for (int i = 0; i < num_threads_; i++) {
     if (td_[i]) {
       memset(td_[i], 0, sizeof(thread_data));
     }
   }
-#endif
   stop_.store(false);
 #endif
 }
@@ -715,14 +531,7 @@ void RocksDBClient::perfmon_loop() {
     uint64_t total_cnt_now = 0;
     uint64_t write_cnt_now = 0;
     uint64_t read_cnt_now = 0;
-#if YCSB_LOAD_THREAD
-		int num_threads__;
-		if (workload_proxy_->is_load() && !koo::only_load) num_threads__ = YCSB_LOAD_THREAD;
-		else num_threads__ = num_threads_;
-    for (int i=0; i<num_threads__; i++) {
-#else
     for (int i = 0; i < num_threads_; i++) {
-#endif
       if (td_[i]) {
         total_cnt_now += td_[i]->total_finished_requests;
         write_cnt_now += td_[i]->write_finished;

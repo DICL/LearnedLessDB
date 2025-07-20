@@ -154,11 +154,8 @@ class DBImpl : public DB {
       EXCLUSIVE_LOCKS_REQUIRED(mutex_);
   Status DoCompactionWork(CompactionState* compact)
       EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-#if MERGE
-  //void DoMergeSort(std::vector<uint64_t>& v, int start, int end);
 	bool CheckIfModelMergingPossible(CompactionState* compact);
   Status DoCompactionWorkWithModelMerging(CompactionState* compact);
-#endif
   Status OpenCompactionOutputFile(CompactionState* compact);
   Status FinishCompactionOutputFile(CompactionState* compact, Iterator* input);
   Status InstallCompactionResults(CompactionState* compact)

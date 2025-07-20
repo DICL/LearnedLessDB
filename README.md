@@ -1,5 +1,8 @@
 # LearnedLessDB
 
+HyperWiscKey
+HyperBourbon(CBA)
+HyperBourbon(Always)
 
 Install
 =======

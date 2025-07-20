@@ -872,10 +872,6 @@ class PosixEnv : public Env {
 #endif
 
   virtual void SleepForMicroseconds(int micros) {
-/*#if TIME_MODELCOMP
-		koo::sum_micros += micros;
-#endif*/
-
     usleep(micros);
   }
 
@@ -1006,7 +1002,6 @@ class PosixEnv : public Env {
 			}
 		}
 #if THREADSAFE
-#if !OFFLINE_FILELEARN
 		// Write learning queue info
 #if MULTI_LEARNING
 		if (!id) {
@@ -1046,7 +1041,6 @@ class PosixEnv : public Env {
 		}
 #if MULTI_LEARNING
 		}
-#endif
 #endif
 		prepare_queue_mutex_.Unlock();
 		running_learning_threads--;
