@@ -37,7 +37,6 @@
 #include "util/coding.h"
 #include "util/logging.h"
 #include "util/mutexlock.h"
-#include "koo/koo.h"
 #include "koo/merge.h"
 
 namespace leveldb {
@@ -138,9 +137,7 @@ struct DBImpl::CompactionState {
     uint64_t file_size;
     InternalKey smallest, largest;
 		koo::MergeModel* merge;
-#if MODEL_COMPACTION
     std::vector<uint64_t> *string_keys;
-#endif
   };
   std::vector<Output> outputs;
 
@@ -151,12 +148,6 @@ struct DBImpl::CompactionState {
   uint64_t total_bytes;
 
 	bool merge_model;
-#if !MODEL_COMPACTION
-	std::vector<uint64_t> x_lasts;
-	int x_lasts_size;
-	int cur_x_lasts;
-	uint32_t num_keys;
-#endif
 
   Output* current_output() { return &outputs[outputs.size()-1]; }
 
@@ -167,11 +158,6 @@ struct DBImpl::CompactionState {
         outfile(NULL),
         builder(NULL),
 				merge_model(false),
-#if !MODEL_COMPACTION
-				x_lasts_size(0),
-				cur_x_lasts(0),
-				num_keys(0),
-#endif
         total_bytes(0) {
   }
  private:
@@ -1016,9 +1002,6 @@ Status DBImpl::OpenCompactionOutputFile(CompactionState* compact) {
     out.number = file_number;
     out.smallest.Clear();
     out.largest.Clear();
-#if !MODEL_COMPACTION
-		out.merge = new koo::MergeModel();
-#endif
     compact->outputs.push_back(out);
     mutex_.Unlock();
   }
@@ -1047,17 +1030,6 @@ Status DBImpl::FinishCompactionOutputFile(CompactionState* compact,
 	if (compact->merge_model) {
 		koo::MergeModel* merge = compact->current_output()->merge;
 		merge->num_entries = current_entries;
-#if !MODEL_COMPACTION
-		auto& seg_infos = merge->seg_infos;
-		int cur = compact->cur_x_lasts;
-		if (seg_infos.empty()) {
-			seg_infos.push_back(std::make_pair(compact->x_lasts[cur], compact->num_keys));
-		} else {
-			if (compact->num_keys) {
-				seg_infos.push_back(std::make_pair(compact->x_lasts[cur], compact->num_keys));
-			}
-		}
-#endif
 	}
 
   if (s.ok()) {
@@ -1151,30 +1123,11 @@ bool DBImpl::CheckIfModelMergingPossible(CompactionState* compact) {
 	}
 	compact->merge_model = true;
 
-#if !MODEL_COMPACTION
-	// Collect and sort x_lasts
-	std::vector<uint64_t>& x_lasts = compact->x_lasts;
-	for (int which=0; which<2; which++) {
-		for (int i=0; i<num_input_files[which]; i++) {
-			uint64_t number = c_->input(which, i)->number;
-			auto& segs = koo::file_data->GetModelImm(number)->string_segments;
-			for (auto& s : segs) x_lasts.push_back(s.x_last);
-			x_lasts.pop_back();		// dummy
-		}
-	}
-	compact->x_lasts_size = x_lasts.size();
-	std::sort(x_lasts.begin(), x_lasts.end());		// quick sort
-#endif
-
 	return true;
 }
 
 Status DBImpl::DoCompactionWorkWithModelMerging(CompactionState* compact) {
-#if MODEL_COMPACTION
   Iterator* input = versions_->MakeInputIterator(compact->compaction, true);
-#else
-  Iterator* input = versions_->MakeInputIterator(compact->compaction);
-#endif
   input->SeekToFirst();
   Status status;
   ParsedInternalKey ikey;
@@ -1194,22 +1147,14 @@ Status DBImpl::DoCompactionWorkWithModelMerging(CompactionState* compact) {
       has_current_key = false;
       last_sequence_for_key = kMaxSequenceNumber;
     } else {
-#if MODEL_COMPACTION
       if (1) {
-#else
-      if (!has_current_key ||
-          user_comparator()->Compare(ikey.user_key,
-                                     current_key.user_key) != 0) {
-#endif
         if (has_current_key && compact->builder &&
             compact->builder->FileSize() >=
             compact->compaction->MinOutputFileSize() &&
             compact->compaction->CrossesBoundary(current_key, ikey, &boundary_hint)) {
-#if MODEL_COMPACTION
           auto tmp_result = ReturnMergeModel(false, input);
           compact->current_output()->merge = (koo::MergeModel*)(tmp_result.first);
           compact->current_output()->string_keys = tmp_result.second;
-#endif
           status = FinishCompactionOutputFile(compact, input);
           if (!status.ok()) {
             break;
@@ -1261,36 +1206,19 @@ Status DBImpl::DoCompactionWorkWithModelMerging(CompactionState* compact) {
         if (!status.ok()) {
           break;
         }
-#if !MODEL_COMPACTION
-				compact->num_keys = 0;
-#endif
       }
       if (compact->builder->NumEntries() == 0) {
         compact->current_output()->smallest.DecodeFrom(key);
       }
       compact->current_output()->largest.DecodeFrom(key);
       compact->builder->Add(key, input->value());
-#if !MODEL_COMPACTION
-			if (pass) { pass--; }
-			else {
-				int& cur = compact->cur_x_lasts;
-				if (ikey.user_key.SliceToInteger() > compact->x_lasts[cur]) {
-					compact->current_output()->merge->seg_infos.push_back(std::make_pair(compact->x_lasts[cur++], compact->num_keys));
-					compact->num_keys = 0;
-				}
-				compact->num_keys += 5;
-				pass = 4;
-			}
-#endif
 
       // Close output file if it is big enough
       if (compact->builder->FileSize() >=
           compact->compaction->MaxOutputFileSize()) {
-#if MODEL_COMPACTION
         auto tmp_result = ReturnMergeModel(true, input);
         compact->current_output()->merge = (koo::MergeModel*)(tmp_result.first);
         compact->current_output()->string_keys = tmp_result.second;
-#endif
         status = FinishCompactionOutputFile(compact, input);
         if (!status.ok()) {
           break;
@@ -1305,11 +1233,9 @@ Status DBImpl::DoCompactionWorkWithModelMerging(CompactionState* compact) {
     status = Status::IOError("Deleting DB during compaction");
   }
   if (status.ok() && compact->builder != NULL) {
-#if MODEL_COMPACTION
     auto tmp_result = ReturnMergeModel(false, input);
     compact->current_output()->merge = (koo::MergeModel*)(tmp_result.first);
     compact->current_output()->string_keys = tmp_result.second;
-#endif
     status = FinishCompactionOutputFile(compact, input);
   }
   if (status.ok()) {
@@ -1481,9 +1407,7 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 			} else {									// Merging succeed
 				// Insert merged new model into koo::file_data
 				koo::LearnedIndexData* new_model = koo::file_data->GetModel(output.number);
-#if MODEL_COMPACTION
 				new_model->string_keys = output.string_keys;
-#endif
 				new_model->min_key = merge->begin_key;
 				new_model->max_key = merge->end_key;
 				new_model->level = c_->level() + 1;
@@ -2199,14 +2123,6 @@ Status DB::Open(const Options& options, const std::string& dbname,
 	koo::file_data = new koo::FileLearnedIndexData();
 	koo::initial_time = __rdtsc();
 	options.env->SetPrepareDeleteOff();
-#if RETRAIN && !RETRAIN2
-	fprintf(stdout, "Learned Model Error: %f, Retraining Threshold: %f\n", koo::learn_model_error, koo::merge_model_error);
-	fflush(stdout);
-#endif
-#if RETRAIN && RETRAIN2
-	fprintf(stdout, "Learned Model Error: %f, Merged Model Error: %f\n", koo::learn_model_error, koo::merge_model_error);
-	fflush(stdout);
-#endif
 
   DBImpl* impl = new DBImpl(options, dbname);
   impl->mutex_.Lock();

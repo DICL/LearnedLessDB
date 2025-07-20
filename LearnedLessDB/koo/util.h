@@ -5,7 +5,6 @@
 #include "hyperleveldb/slice.h"
 #include "hyperleveldb/env.h"
 #include <x86intrin.h>
-#include "koo/koo.h"
 
 using leveldb::Slice;
 

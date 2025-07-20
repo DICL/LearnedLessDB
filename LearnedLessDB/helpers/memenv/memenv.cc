@@ -12,7 +12,6 @@
 #include <string.h>
 #include <string>
 #include <vector>
-#include "koo/koo.h"
 
 namespace leveldb {
 

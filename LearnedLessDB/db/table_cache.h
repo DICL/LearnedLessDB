@@ -14,7 +14,6 @@
 #include "hyperleveldb/table.h"
 #include "port/port.h"
 #include "version_edit.h"
-#include "koo/koo.h"
 #include "db/version_set.h"
 
 namespace koo { class LearnedIndexData; }
@@ -45,9 +44,7 @@ class TableCache {
   Status Get(const ReadOptions& options,
              uint64_t file_number,
              uint64_t file_size,
-#if RETRAIN
 						 int level, FileMetaData* meta,
-#endif
              const Slice& k,
              void* arg,
              void (*handle_result)(void*, const Slice&, const Slice&));
@@ -57,9 +54,7 @@ class TableCache {
 
 	Status ModelGet(uint64_t file_number, uint64_t file_size, const Slice& k,
 									void* arg, void (*handle_result)(void*, const Slice&, const Slice&),
-#if RETRAIN
 									int level, FileMetaData* meta,
-#endif
 									koo::LearnedIndexData* model);
 	bool FillData(const ReadOptions& options, FileMetaData* meta, koo::LearnedIndexData* data);
 

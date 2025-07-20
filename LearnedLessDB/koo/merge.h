@@ -6,7 +6,6 @@
 #include "koo/plr.h"
 #include "koo/util.h"
 #include "koo/learned_index.h"
-#include "koo/koo.h"
 
 
 namespace koo {

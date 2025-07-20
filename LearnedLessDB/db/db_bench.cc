@@ -19,7 +19,6 @@
 #include <condition_variable>
 #include <thread>
 #include <string_view>
-#include "koo/koo.h"
 #include "util/histogram.h"
 
 // Comma-separated list of operations to run in the specified order

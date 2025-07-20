@@ -7,7 +7,7 @@ set -o pipefail
 ##
 # *** WORKLOAD CONFIGURATION ***
 recordcount=$((50*1000*1000))  # 100 M
-operationcount=$((20*1000*1000))  # 10 M
+operationcount=$((10*1000*1000))  # 10 M
 scan_operationcount=$((10*1000*1000))  # 10 M
 field_len=64
 field_cnt=1  # value: 10*100 =~ 1 KB
@@ -27,7 +27,9 @@ learned_error_bound=8
 mod=0			# 0: HyperBourbon(CBA), 1: HyperBourbon(Always), 2: HyperWiscKey
 db_path="/mnt-koo/db"
 
+
 rm -rf /mnt-koo/db/*
+
 sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
 $ycsb \
 	--recordcount=${recordcount} \

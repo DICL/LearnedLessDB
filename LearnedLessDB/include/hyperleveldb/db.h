@@ -10,7 +10,6 @@
 #include "hyperleveldb/iterator.h"
 #include "hyperleveldb/options.h"
 #include "hyperleveldb/replay_iterator.h"
-#include "koo/koo.h"
 
 namespace leveldb {
 

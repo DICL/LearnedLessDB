@@ -71,7 +71,6 @@ void YCSBRunner::run_all() {
 			fprintf(stderr, "%s\n", s.ToString().c_str());
 			exit(0);
 		}
-		fprintf(stdout, "DB Opened ycsb_runner.h\n");
 	}
 #endif
 
@@ -81,12 +80,8 @@ void YCSBRunner::run_all() {
 	  rocksdb_client0.run();
 		rocksdb_client1.run();
 #if YCSB_COPYDB
-		fprintf(stdout, "Start deleting db: %s\n", GetDayTime().c_str());
-		fflush(stdout);
 		delete db_;
 		db_ = nullptr;
-		fprintf(stdout, "Finish deleting db: %s\n", GetDayTime().c_str());
-		fflush(stdout);
 #endif
 	} else if (size == 6) {
 		RocksDBClient rocksdb_client0(&(wps[0]), num_threads_, options_, data_dir_, db_, wrappers[0]);
@@ -102,23 +97,15 @@ void YCSBRunner::run_all() {
 		rocksdb_client4.run();
 		rocksdb_client5.run();
 #if YCSB_COPYDB
-		fprintf(stdout, "Start deleting db: %s\n", GetDayTime().c_str());
-		fflush(stdout);
 		delete db_;
 		db_ = nullptr;
-		fprintf(stdout, "Finish deleting db: %s\n", GetDayTime().c_str());
-		fflush(stdout);
 #endif
 	} else if (size == 1) {
 		RocksDBClient rocksdb_client(&(wps[0]), num_threads_, options_, data_dir_, db_, wrappers[0]);
 		rocksdb_client.run();
 #if YCSB_COPYDB
-		fprintf(stdout, "Start deleting db: %s\n", GetDayTime().c_str());
-		fflush(stdout);
 		delete db_;
 		db_ = nullptr;
-		fprintf(stdout, "Finish deleting db: %s\n", GetDayTime().c_str());
-		fflush(stdout);
 #endif
 	} else {
 		for (int i=0; i<size; i++) {
@@ -127,12 +114,8 @@ void YCSBRunner::run_all() {
 		  rocksdb_client.run();
 		}
 #if YCSB_COPYDB
-		fprintf(stdout, "Start deleting db: %s\n", GetDayTime().c_str());
-		fflush(stdout);
 		delete db_;
 		db_ = nullptr;
-		fprintf(stdout, "Finish deleting db: %s\n", GetDayTime().c_str());
-		fflush(stdout);
 #endif
 	}
 #if YCSB_COPYDB

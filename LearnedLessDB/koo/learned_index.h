@@ -10,8 +10,8 @@
 #include <cstring>
 #include "koo/util.h"
 #include "koo/plr.h"
-#include "koo/koo.h"
 #include "port/port.h"
+#include "koo/koo.h"
 
 
 using std::string;
@@ -77,18 +77,12 @@ namespace koo {
         std::atomic<bool> learning;
 				bool deleted_not_atomic;
 				std::atomic<bool> deleted;
-#if MODEL_COMPACTION
 				port::Mutex mutex_delete_;
-#endif
 				bool merged;
-#if RETRAIN
 				std::atomic<bool> retraining;
-#endif
     public:
 				uint64_t file_number;
-#if RETRAIN2
 				bool error_extented = false;
-#endif
         // is the data of this model filled (ready for learning)
         bool filled;
 
@@ -99,11 +93,8 @@ namespace koo {
         uint64_t size;			// SST내 entry 개수
 
     public:
-#if RETRAIN || MODEL_COMPACTION
         bool is_retrained_ = false;
         std::vector<Segment> string_segments_bak;
-#endif
-#if MODEL_COMPACTION
         Segment GetSegment(int offset) {
                 return string_segments[offset];
         }
@@ -112,9 +103,6 @@ namespace koo {
         }
         // all keys in the file/level to be leraned from
         std::vector<uint64_t> *string_keys = nullptr;
-#else
-        std::vector<uint64_t> string_keys;
-#endif
         // only used in level models
         //AccumulatedNumEntriesArray num_entries_accumulated;
 
@@ -129,18 +117,11 @@ namespace koo {
 //        double gain_p = 0;
 //        uint64_t file_size = 0;
 
-#if RETRAIN
         explicit LearnedIndexData(uint64_t number) : file_number(number), error(koo::learn_model_error), learned(false), 
 						deleted(false), deleted_not_atomic(false),
 						aborted(false), learning(false), learned_not_atomic(false), filled(false), level(0), cost(0), 
 						retraining(false),
 						merged(false) {};
-#else					// RETRAIN
-        explicit LearnedIndexData(uint64_t number) : file_number(number), error(koo::learn_model_error), learned(false), 
-						deleted(false), deleted_not_atomic(false),
-						aborted(false), learning(false), learned_not_atomic(false), filled(false), level(0), cost(0), 
-						merged(false) {};
-#endif				// RETRAIN
 
         LearnedIndexData(const LearnedIndexData& other) = delete;
         ~LearnedIndexData();
@@ -154,17 +135,13 @@ namespace koo {
         std::pair<uint64_t, uint64_t> GetPosition(Slice& key);
         uint64_t MaxPosition() const;
         double GetError() const;
-#if RETRAIN2
         void SetError(double cur_error, uint64_t extra_error);
-#endif
 
 				void SetMergedModel(std::vector<Segment>& segs);
 				bool Merged();
-#if RETRAIN
 				void FreezeModel();
 				void UnfreezeModel();
 				bool SetRetraining();
-#endif
         
         // Learning function and checker (check if this model is available)
         bool Learn();

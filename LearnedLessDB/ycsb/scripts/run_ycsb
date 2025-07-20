@@ -26,6 +26,7 @@ learned_error_bound=8
 merged_error_bound=21
 db_path="/mnt-koo/db"
 
+
 rm -rf ${db_path}/*
 
 sync; echo 1 | sudo tee /proc/sys/vm/drop_caches

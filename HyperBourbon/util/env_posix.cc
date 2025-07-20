@@ -902,8 +902,6 @@ class PosixEnv : public Env {
 		}
 		// Write learning queue info
 		if (!id) {
-		fprintf(stdout, "Write learning_prepare size: %ld\n", learning_prepare.size());
-		fprintf(stdout, "Write learning_pq size: %ld\n", learn_pq.size());
 		if (koo::db->GetDBName() != "/mnt-koo/db_mix") {
 		std::ofstream ofs(koo::db->GetDBName() + koo::model_dbname + "/lqueue", std::ios::binary);
 
@@ -942,8 +940,6 @@ class PosixEnv : public Env {
 			std::unique_lock<std::mutex> lock(stop_mutex);
 			stop_cv.notify_one();
 		}
-		fprintf(stdout, "Learning Thread finished\n");
-		fflush(stdout);
 	}
 
 	static void PrepareLearnEntryPoint(PosixEnv* env, int id) {
@@ -964,7 +960,6 @@ class PosixEnv : public Env {
 			if (ifs.good()) {
 				size_t q_size;
 				ifs.read(reinterpret_cast<char*>(&q_size), sizeof(size_t));
-				fprintf(stdout, "Read learning_prepare size: %ld\n", q_size);
 				for (size_t i=0; i<q_size; i++) {
 					int level_;
 					uint64_t time_start_;
@@ -978,7 +973,6 @@ class PosixEnv : public Env {
 					learning_prepare.emplace(std::make_pair(time_start_, std::make_pair(level_, meta_)));
 				}
 				ifs.read(reinterpret_cast<char*>(&q_size), sizeof(size_t));
-				fprintf(stdout, "Read learning_pq size: %ld\n", q_size);
 				for (size_t i=0; i<q_size; i++) {
 					double score_;
 					int level_;
@@ -1014,8 +1008,6 @@ class PosixEnv : public Env {
 		stop_cv.wait(lock, [this]() {
 			return running_learning_threads == 0;
 		});
-		fprintf(stdout, "StopLearning() finished\n");
-		fflush(stdout);
 	}
 
 	void SetPrepareDeleteOff() {

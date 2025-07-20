@@ -13,7 +13,6 @@
 #include "koo/learned_index.h"
 #include "koo/merge.h"
 
-#if MODEL_COMPACTION
 namespace leveldb {
 
 namespace {
@@ -580,4 +579,3 @@ std::pair<void*, std::vector<uint64_t>*> ReturnMergeModel(bool include_current, 
   return ((MergingWithModelIterator*)iter)->GetMergeModel(include_current);
 }
 }  // namespace leveldb
-#endif

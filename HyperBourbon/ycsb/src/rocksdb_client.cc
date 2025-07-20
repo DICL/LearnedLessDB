@@ -36,7 +36,6 @@ RocksDBClient::RocksDBClient(WorkloadProxy* workload_proxy, int num_threads,
   if (!db_) {
     //abort();
     leveldb::Status s = leveldb::DB::Open(options_, data_dir_, &db_);
-    fprintf(stdout, "DB Opened rocksdb_client.cc\n");
     if (!s.ok()) {
       printf("%s\n", s.ToString().c_str());
       exit(0);
@@ -85,7 +84,7 @@ void RocksDBClient::Load(){
 	std::vector<std::thread> threads;
 	auto fn = std::bind(&RocksDBClient::RocksdDBLoader, this, 
 						std::placeholders::_1, std::placeholders::_2);
-	printf("start time: %s\n", GetDayTime().c_str());
+	//printf("start time: %s\n", GetDayTime().c_str());
 	auto start = TIME_NOW;
 	for(int i=0; i<num_threads_; i++){
 		if(i == num_threads_ - 1)
@@ -96,7 +95,7 @@ void RocksDBClient::Load(){
 		t.join();
 	}
 	double time = TIME_DURATION(start, TIME_NOW);
-	printf("end time: %s\n", GetDayTime().c_str());
+	//printf("end time: %s\n", GetDayTime().c_str());
   //stop_.store(true);
   //if (perfmon_thread.joinable()) perfmon_thread.join();
 
@@ -111,7 +110,7 @@ void RocksDBClient::Load(){
 		    update_time_->Tail(0.90), update_time_->Tail(0.75));*/
 	printf("------------------------------------------------------------------\n");
   printf("Load %c - IOPS: %.3lf M\n", workload_proxy_->name_str().back(), load_num_/time*1000*1000/1000/1000);
-	printf("time: %s\n", GetDayTime().c_str());
+	//printf("time: %s\n", GetDayTime().c_str());
 	printf("==================================================================\n");
 	fflush(stdout);
 	/*std::string stat_str2;
@@ -147,7 +146,7 @@ void RocksDBClient::Work(){
   fn = std::bind(&RocksDBClient::RocksDBWorker, this, 
               std::placeholders::_1, std::placeholders::_2,
               std::placeholders::_3);
-	printf("start time: %s\n", GetDayTime().c_str());
+	//printf("start time: %s\n", GetDayTime().c_str());
 	auto start = TIME_NOW;
 	for(int i=0; i<num_threads_; i++){
 		if(i == num_threads_ - 1)
@@ -157,14 +156,14 @@ void RocksDBClient::Work(){
 	for(auto &t : threads)
 		t.join();
 	double time = TIME_DURATION(start, TIME_NOW);
-	printf("end time: %s\n", GetDayTime().c_str());
+	//printf("end time: %s\n", GetDayTime().c_str());
   //stop_.store(true);
   //if (perfmon_thread.joinable()) perfmon_thread.join();
 
-	std::string stat_str2;
+	/*std::string stat_str2;
 	db_->GetProperty("leveldb.stats", &stat_str2);
 	printf("\n%s\n", stat_str2.c_str());
-	fflush(stdout);
+	fflush(stdout);*/
 
 	//assert(request_time_->Size() == request_num_);
 	printf("==================================================================\n");
@@ -217,8 +216,8 @@ void RocksDBClient::Work(){
 	printf("submit_time: %.3lf\n", submit_time_ / 1000.0 / request_num_);*/
 	printf("------------------------------------------------------------------\n");
   printf("%s %s - IOPS: %.3lf M\n", workload_proxy_->name_str().c_str(), workload_proxy_->distribution_str().c_str(), request_num_/time*1000*1000/1000/1000);
-	printf("Read proportion: %f, Update proportion: %f\n", workload_proxy_->read_proportion, workload_proxy_->update_proportion);
-	printf("time: %s\n", GetDayTime().c_str());
+	//printf("Read proportion: %f, Update proportion: %f\n", workload_proxy_->read_proportion, workload_proxy_->update_proportion);
+	//printf("time: %s\n", GetDayTime().c_str());
 	printf("==================================================================\n");
 	fflush(stdout);
 

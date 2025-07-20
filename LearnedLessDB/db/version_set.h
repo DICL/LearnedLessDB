@@ -282,7 +282,6 @@ class VersionSet {
 		if (sum) {
 			num_being_compacted[level] += num;
 		} else {
-			assert(num_being_compacted[level] - num >= 0);		// TODO disable
 			num_being_compacted[level] -= num;
 		}
 	}
@@ -310,11 +309,7 @@ class VersionSet {
 
   // Create an iterator that reads over the compaction inputs for "*c".
   // The caller should delete the iterator when no longer needed.
-#if MODEL_COMPACTION
   Iterator* MakeInputIterator(Compaction* c, bool is_model_merge = false);
-#else
-  Iterator* MakeInputIterator(Compaction* c);
-#endif
 
   // Add all files listed in any live version to *live.
   // May also mutate some internal state.

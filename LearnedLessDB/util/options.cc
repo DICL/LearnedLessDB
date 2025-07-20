@@ -6,7 +6,6 @@
 
 #include "hyperleveldb/comparator.h"
 #include "hyperleveldb/env.h"
-#include "koo/koo.h"
 
 namespace leveldb {
 

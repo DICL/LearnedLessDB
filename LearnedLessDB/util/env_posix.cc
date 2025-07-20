@@ -32,7 +32,6 @@
 #include <thread>
 #include "db/version_edit.h"
 #include "koo/merge.h"
-#include "koo/koo.h"
 
 namespace leveldb {
 
@@ -844,18 +843,13 @@ class PosixEnv : public Env {
 
 		// dead lookp
 		while(true) {
-#if RETRAIN3
 			while (high_q.empty() && low_q.empty()) {
-#else
-			while (learning_prepare.empty()) {
-#endif
 				if (prepare_delete) break;
 				preparing_queue_cv_.Wait();
 				if (prepare_delete) break;
 			}
 			if (prepare_delete) break;
 
-#if RETRAIN3
 			while (!high_q.empty() || !low_q.empty()) {
 				bool high = true;
 				LearnParam top = {-1, nullptr};
@@ -864,57 +858,31 @@ class PosixEnv : public Env {
 					top = low_q.front();
 					high = false;
 				}
-#else
-			while (!learning_prepare.empty()) {
-				auto& top = learning_prepare.front();
-#endif
 				int level = top.first;
 				FileMetaData* meta = top.second;
 				koo::LearnedIndexData* model = koo::file_data->GetModel(meta->number);
 				prepare_queue_mutex_.Unlock();
 				koo::LearnedIndexData::FileLearn(new koo::MetaAndSelf{nullptr, 0, meta, model, level});
 				prepare_queue_mutex_.Lock();
-#if RETRAIN3
 				if (high) high_q.pop();
 				else low_q.pop();
-#else
-				learning_prepare.pop();
-#endif
 				if (prepare_delete) break;
 			}
 			if (prepare_delete) break;
 		}
-#if RETRAIN3
-		fprintf(stdout, "Write learning_pq size: %ld\n", high_q.size());
-#else
-		fprintf(stdout, "Write learning_pq size: %ld\n", learning_prepare.size());
-#endif
 		if (koo::db->GetDBName() != "/mnt-koo/db_mix") {
 		std::ofstream ofs(koo::db->GetDBName() + koo::model_dbname + "/lqueue", std::ios::binary);
 
-#if RETRAIN3
 		size_t q_size = high_q.size();
-#else
-		size_t q_size = learning_prepare.size();
-#endif
 		ofs.write(reinterpret_cast<const char*>(&q_size), sizeof(size_t));
-#if RETRAIN3
 		while (!high_q.empty()) {
 			auto& top = high_q.front();
-#else
-		while (!learning_prepare.empty()) {
-			auto& top = learning_prepare.front();
-#endif
 			ofs.write(reinterpret_cast<const char*>(&top.first), sizeof(int));	// level
 			FileMetaData* meta = top.second;
 			ofs.write(reinterpret_cast<const char*>(&meta->number), sizeof(uint64_t));
 			ofs.write(reinterpret_cast<const char*>(&meta->file_size), sizeof(uint64_t));
 			delete meta;
-#if RETRAIN3
 			high_q.pop();
-#else
-			learning_prepare.pop();
-#endif
 		}
 		ofs.close();
 		}
@@ -930,11 +898,7 @@ class PosixEnv : public Env {
 		env->PrepareLearn();
 	}
 
-#if RETRAIN3
 	void PrepareLearning(int level, FileMetaData* meta, bool high_pri = true) {
-#else
-	void PrepareLearning(int level, FileMetaData* meta) {
-#endif
 		if (prepare_delete) return;
 		prepare_queue_mutex_.Lock();
 		if (prepare_delete) {
@@ -948,7 +912,6 @@ class PosixEnv : public Env {
 			if (ifs.good()) {
 				size_t q_size;
 				ifs.read(reinterpret_cast<char*>(&q_size), sizeof(size_t));
-				fprintf(stdout, "Read learning_pq size: %ld\n", q_size);
 				for (size_t i=0; i<q_size; i++) {
 					int level_;
 					ifs.read(reinterpret_cast<char*>(&level_), sizeof(int));
@@ -957,11 +920,7 @@ class PosixEnv : public Env {
 					ifs.read(reinterpret_cast<char*>(&meta_->file_size), sizeof(uint64_t));
 					meta_->smallest = InternalKey();
 					meta_->largest = InternalKey();
-#if RETRAIN3
 					high_q.push(std::make_pair(level_, meta_));
-#else
-					learning_prepare.push(std::make_pair(level_, meta_));
-#endif
 				}
 				ifs.close();
 			}
@@ -969,16 +928,8 @@ class PosixEnv : public Env {
 			background_thread.detach();
 		}
 
-#if RETRAIN3
 		if (high_pri) high_q.emplace(std::make_pair(level, meta));
 		else low_q.emplace(std::make_pair(level, meta));
-#else
-		/*if (learning_prepare.empty()) {
-			learning_prepare.emplace(std::make_pair(level, meta));
-			preparing_queue_cv_.Signal();
-		} else learning_prepare.emplace(std::make_pair(level, meta));*/
-		learning_prepare.emplace(std::make_pair(level, meta));
-#endif
 		prepare_queue_mutex_.Unlock();
 		preparing_queue_cv_.Signal();		// learning thread 1개여서
 	}
@@ -1029,12 +980,8 @@ class PosixEnv : public Env {
   MmapLimiter mmap_limit_;
 
 	typedef std::pair<int, FileMetaData*> LearnParam;		// <level, meta>
-#if RETRAIN3
 	std::queue<LearnParam> high_q;
 	std::queue<LearnParam> low_q;
-#else
-	std::queue<LearnParam> learning_prepare;
-#endif
 	bool preparing_thread_started;
 	port::Mutex prepare_queue_mutex_;
   port::CondVar preparing_queue_cv_;

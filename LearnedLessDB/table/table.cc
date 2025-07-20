@@ -15,7 +15,6 @@
 #include "table/two_level_iterator.h"
 #include "util/coding.h"
 #include "db/version_set.h"
-#include "koo/koo.h"
 
 namespace koo { class LearnedIndexData; }
 
@@ -278,11 +277,7 @@ void Table::FillData(const ReadOptions& options, koo::LearnedIndexData* data) {
     int num_entries_this_block = 0;
     for (block_iter->SeekToRestartPoint(0); block_iter->ParseNextKey(); ++num_entries_this_block) {
         ParseInternalKey(block_iter->key(), &parsed_key);
-#if MODEL_COMPACTION
         data->string_keys->emplace_back(parsed_key.user_key.SliceToInteger());
-#else
-        data->string_keys.emplace_back(parsed_key.user_key.SliceToInteger());
-#endif
     }
 
     if (!koo::block_num_entries_recorded) {

@@ -17,7 +17,6 @@
 
 #include "hyperleveldb/slice.h"
 #include "hyperleveldb/status.h"
-#include "koo/koo.h"
 
 namespace leveldb {
 

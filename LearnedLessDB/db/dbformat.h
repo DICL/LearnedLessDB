@@ -13,7 +13,6 @@
 #include "hyperleveldb/table_builder.h"
 #include "util/coding.h"
 #include "util/logging.h"
-#include "koo/koo.h"
 
 namespace leveldb {
 

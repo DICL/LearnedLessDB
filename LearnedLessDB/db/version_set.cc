@@ -21,7 +21,6 @@
 #include "table/two_level_iterator.h"
 #include "util/coding.h"
 #include "util/logging.h"
-#include "koo/koo.h"
 
 namespace leveldb {
 
@@ -424,9 +423,7 @@ Status Version::Get(const ReadOptions& options,
       saver.user_key = user_key;
       saver.value = value;
       s = vset_->table_cache_->Get(options, f->number, f->file_size,
-#if RETRAIN
 																	 level, f,
-#endif
                                    ikey, &saver, SaveValue);
       if (!s.ok()) {
         return s;
@@ -1270,11 +1267,7 @@ void VersionSet::GetRange2(const std::vector<FileMetaData*>& inputs1,
   GetRange(all, smallest, largest);
 }
 
-#if MODEL_COMPACTION
 Iterator* VersionSet::MakeInputIterator(Compaction* c, bool is_model_merge) {
-#else
-Iterator* VersionSet::MakeInputIterator(Compaction* c) {
-#endif
   ReadOptions options;
   options.verify_checksums = options_->paranoid_checks;
   options.fill_cache = false;
@@ -1302,15 +1295,11 @@ Iterator* VersionSet::MakeInputIterator(Compaction* c) {
     }
   }
   assert(num <= space);
-#if MODEL_COMPACTION
   Iterator* result;
   if (!is_model_merge)
     result = NewMergingIterator(&icmp_, list, num);
   else
     result = NewMergingWithModelIterator(&icmp_, list, c);
-#else
-  Iterator* result = NewMergingIterator(&icmp_, list, num);
-#endif
   delete[] list;
   return result;
 }
@@ -1762,7 +1751,6 @@ bool Version::FillData(const ReadOptions& options, FileMetaData* meta, koo::Lear
 }
 
 void Version::WriteModel() {
-	printf("WriteModel()\n");
 	for (int i=0; i<config::kNumLevels; ++i) {
 		for (auto* meta : files_[i]) {
 			auto* model = koo::file_data->GetModel(meta->number);
@@ -1775,7 +1763,6 @@ void Version::WriteModel() {
 }
 
 void Version::ReadModel() {
-	printf("ReadModel()\n");
 	for (int i=0; i<config::kNumLevels; ++i) {
 		for (auto* meta : files_[i]) {
 			koo::file_data->GetModel(meta->number)->ReadModel(
@@ -1785,7 +1772,6 @@ void Version::ReadModel() {
 }
 
 void Version::OfflineFileLearn() {
-	printf("Offline FileLearn()\n");
 	for (int i=0; i<config::kNumLevels; ++i) {
 		for (auto* meta : files_[i]) {
 			FileMetaData* meta_ = new FileMetaData();

@@ -7,8 +7,6 @@
 #include <cstring>
 #include "koo/Vlog.h"
 #include "koo/util.h"
-//#include "util/coding.h"
-#include "koo/koo.h"
 
 using std::string;
 

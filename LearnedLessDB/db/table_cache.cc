@@ -8,7 +8,6 @@
 #include "hyperleveldb/env.h"
 #include "hyperleveldb/table.h"
 #include "util/coding.h"
-#include "koo/koo.h"
 #include "util/coding.h"
 #include "table/filter_block.h"
 #include "table/block.h"
@@ -109,20 +108,14 @@ Iterator* TableCache::NewIterator(const ReadOptions& options,
 Status TableCache::Get(const ReadOptions& options,
                        uint64_t file_number,
                        uint64_t file_size,
-#if RETRAIN
 											 int level, FileMetaData* meta,
-#endif
                        const Slice& k,
                        void* arg,
                        void (*saver)(void*, const Slice&, const Slice&)) {
 	// Check if model exists
 	koo::LearnedIndexData* model = koo::file_data->GetModelForLookup(file_number);
 	if (model != nullptr && model->Learned()) {
-#if RETRAIN
 		Status s = ModelGet(file_number, file_size, k, arg, saver, level, meta, model);
-#else
-		Status s = ModelGet(file_number, file_size, k, arg, saver, model);
-#endif
 		return s;
 	}
   Cache::Handle* handle = NULL;
@@ -143,9 +136,7 @@ void TableCache::Evict(uint64_t file_number) {
 
 Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slice& k, 
 														void* arg, void (*saver)(void*, const Slice&, const Slice&),
-#if RETRAIN
 													  int level, FileMetaData* meta,
-#endif
 														koo::LearnedIndexData* model) {
 	// Find table
   Cache::Handle* handle = NULL;
@@ -321,25 +312,7 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 				pos_block_upper2 = pos_block_lower - 1;
 			}
 		}
-
-#if RETRAIN && !RETRAIN2
-		// Trigger retraining
-		if (model->SetRetraining()) {
-			FileMetaData* meta_ = new FileMetaData();
-			meta_->number = file_number;
-			meta_->file_size = meta->file_size;
-			meta_->smallest = meta->smallest;
-			meta_->largest = meta->largest;
-#if RETRAIN3
-			env_->PrepareLearning(level, meta_, false);
-#else
-			env_->PrepareLearning(level, meta_);
-#endif
-		}
-#endif
-#if RETRAIN2
 		uint64_t last_left = left;
-#endif
 
 		// Read corresponding entries
 	  read_size = (pos_block_upper2 - pos_block_lower2 + 1) * koo::entry_size;
@@ -362,7 +335,6 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 	    else right = mid;
 		}
 
-#if RETRAIN2
 		double extra_error = -1;
 		if (i == i_) {
 			if (next) extra_error = left - pos_block_lower2 + 1;
@@ -381,18 +353,13 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 				meta_->file_size = meta->file_size;
 				meta_->smallest = meta->smallest;
 				meta_->largest = meta->largest;
-#if RETRAIN3
 				env_->PrepareLearning(level, meta_, false);
-#else
-				env_->PrepareLearning(level, meta_);
-#endif
 			}
 		}
 		else {
 			if (extra_error+10+cur_error > 51) model->SetError(cur_error, extra_error);
 			else model->SetError(cur_error, extra_error+10);
 		}
-#endif
 
 		// decode the target entry to get the key and value (actually value_addr)
 	  uint32_t shared, non_shared, value_length;

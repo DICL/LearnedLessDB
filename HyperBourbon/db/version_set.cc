@@ -1814,7 +1814,6 @@ bool Version::FillData(const ReadOptions& options, FileMetaData* meta, koo::Lear
 }
 
 void Version::WriteModel() {
-	fprintf(stdout, "WriteModel()\n");
 	fflush(stdout);
 	for (int i=0; i<config::kNumLevels; ++i) {
 		for (auto* meta : files_[i]) {
@@ -1825,7 +1824,6 @@ void Version::WriteModel() {
 }
 
 void Version::ReadModel() {
-	printf("ReadModel()\n");
 	for (int i=0; i<config::kNumLevels; ++i) {
 		for (auto* meta : files_[i]) {
 			koo::file_data->GetModel(meta->number)->ReadModel(

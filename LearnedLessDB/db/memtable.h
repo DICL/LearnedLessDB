@@ -11,7 +11,6 @@
 #include "db/skiplist.h"
 #include "util/arena.h"
 #include "util/atomic.h"
-#include "koo/koo.h"
 
 namespace leveldb {
 

@@ -20,12 +20,7 @@
 
 #define YCSB_COPYDB 1
 #define YCSB_SOSD 0
-#define NORMARLIZE_KEY 0		// key - min_key. 선분 k, b만
-
-#define MODEL_COMPACTION 1		// compaction using merged models
-#define RETRAIN 1
-#define RETRAIN2 1						// 재학습 대신 error bound 확장
-#define RETRAIN3 1						// 재학습하는 파일은 우선순위 낮게
+#define NORMARLIZE_KEY 0		// key - min_key
 
 namespace koo {
 

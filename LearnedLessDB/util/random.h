@@ -10,7 +10,6 @@
 #include <climits>
 #include <thread>
 #include <algorithm>
-#include "koo/koo.h"
 
 namespace leveldb {
 

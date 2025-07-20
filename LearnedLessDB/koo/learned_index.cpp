@@ -13,17 +13,12 @@
 #include <utility>
 #include "util/mutexlock.h"
 #include "koo/util.h"
-#include "koo/koo.h"
 
 namespace koo {
 
 std::pair<uint64_t, uint64_t> LearnedIndexData::GetPosition(
     Slice& target_x) {
-#if RETRAIN
   assert(string_segments.size() > 1 || string_segments_bak.size() > 1);
-#else
-  assert(string_segments.size() > 1);
-#endif
 
   // check if the key is within the model bounds
   uint64_t target_int = target_x.SliceToInteger();
@@ -62,9 +57,7 @@ std::pair<uint64_t, uint64_t> LearnedIndexData::GetPosition(
 #else
   double result = target_int * k + b;
 #endif
-#if RETRAIN2
 	double error = GetError();
-#endif
   uint64_t lower =
       result - error > 0 ? (uint64_t)std::floor(result - error) : 0;
   uint64_t upper = (uint64_t)std::ceil(result + error);
@@ -81,14 +74,11 @@ uint64_t LearnedIndexData::MaxPosition() const { return size - 1; }
 
 double LearnedIndexData::GetError() const { return error; }
 
-#if RETRAIN2
 void LearnedIndexData::SetError(double cur_error, uint64_t extra_error) { 
-	//if (cur_error == error || cur_error + extra_error > error) {
 	if (cur_error + extra_error > error) {
 		error = cur_error + extra_error;
 	}
 }
-#endif
 
 void LearnedIndexData::SetMergedModel(std::vector<Segment>& segs) {
 	error = koo::merge_model_error;
@@ -102,7 +92,6 @@ bool LearnedIndexData::Merged() {
 	return merged;
 }
 
-#if RETRAIN
 void LearnedIndexData::FreezeModel() {
 	if (learned_not_atomic) {
 		learned.store(false);
@@ -120,7 +109,6 @@ bool LearnedIndexData::SetRetraining() {
 	if (!retraining.compare_exchange_weak(try_retraining, !try_retraining)) return false;
 	return true;
 }
-#endif
 
 // Actual function doing learning
 bool LearnedIndexData::Learn() {
@@ -128,33 +116,18 @@ bool LearnedIndexData::Learn() {
   PLR plr = PLR(koo::learn_model_error);
 
   // check if data if filled
-#if MODEL_COMPACTION
 	if (string_keys->empty()) {
 		string_keys->shrink_to_fit();
-#else
-	if (string_keys.empty()) {
-		string_keys.shrink_to_fit();
-#endif
 		return false;
 	}
 
   // fill in some bounds for the model
-#if MODEL_COMPACTION
 	min_key = string_keys->front();
 	max_key = string_keys->back();
   size = string_keys->size();
-#else
-	min_key = string_keys.front();
-	max_key = string_keys.back();
-  size = string_keys.size();
-#endif
 
   // actual training
-#if MODEL_COMPACTION
   std::vector<Segment> segs = plr.train(*string_keys);
-#else
-  std::vector<Segment> segs = plr.train(string_keys);
-#endif
   if (segs.empty()) return false;
   if (Deleted()) return false;
 	if (segs.front().x != min_key) segs.front().x = min_key;
@@ -162,7 +135,6 @@ bool LearnedIndexData::Learn() {
   // fill in a dummy last segment (used in segment binary search)
   segs.push_back((Segment){max_key, 0, 0, 0, 0});
 
-#if RETRAIN
 	if (retraining.load()) {
 		string_segments_bak = std::move(segs);
 		error = koo::learn_model_error;
@@ -171,9 +143,6 @@ bool LearnedIndexData::Learn() {
 	} else {
 		string_segments = std::move(segs);
 	}
-#else		// RETRAIN
-  string_segments = std::move(segs);
-#endif
 	learned.store(true);
   return true;
 }
@@ -190,10 +159,7 @@ uint64_t LearnedIndexData::FileLearn(void* arg) {
 
   if (!(self->Deleted())) {
   	bool filldata = false;
-#if MODEL_COMPACTION
-#if RETRAIN
 	  if (!(self->retraining.load())) {		// model learning
-#endif
 			self->mutex_delete_.Lock();
 			self->string_keys = new std::vector<uint64_t>();
 			uint64_t tmp_entry_num = 430185;
@@ -203,33 +169,18 @@ uint64_t LearnedIndexData::FileLearn(void* arg) {
 			self->mutex_delete_.Unlock();
 
 			filldata = self->FillData(c, mas->meta);
-#if RETRAIN
 		} else filldata = true;			// model retraining
-#endif
-#else
-		filldata = self->FillData(c, mas->meta);
-#endif
 
 		if (filldata) {
-#if RETRAIN
 			if (self->Learn()) {
 				entered = true;
 			} //else fprintf(stderr, "\nLearning stopped\n\n");
-#else
-		  if (self->Learn()) {
-				entered = true;
-			}
-#endif
 		}
   }
 
   self->learning.store(false);
   koo::db->ReturnCurrentVersion(c);
 
-#if !MODEL_COMPACTION
-	self->string_keys.clear();
-	self->string_keys.shrink_to_fit();
-#endif
 	if (self->Deleted()) {
 		self->string_segments.clear();
 		self->string_segments.shrink_to_fit();
@@ -237,14 +188,12 @@ uint64_t LearnedIndexData::FileLearn(void* arg) {
 			self->string_segments_bak.clear();
 			self->string_segments_bak.shrink_to_fit();
 		}
-#if MODEL_COMPACTION
 		self->mutex_delete_.Lock();
 		if (self->string_keys) {
 			delete self->string_keys;
 			self->string_keys = nullptr;
 		}
 		self->mutex_delete_.Unlock();
-#endif
 	}
   delete mas->meta;
   delete mas;
@@ -293,12 +242,10 @@ void LearnedIndexData::WriteModel(const string& filename) {
 	ofs.write(reinterpret_cast<const char*>(&file_number), sizeof(uint64_t));
 	ofs.write(reinterpret_cast<const char*>(&error), sizeof(double));
 
-#if MODEL_COMPACTION
 	for (size_t i=0; i<size; i++) {
 		uint64_t key = (*string_keys)[i];
 		ofs.write(reinterpret_cast<const char*>(&key), sizeof(uint64_t));
 	}
-#endif
 
 	ofs.close();
 }
@@ -331,7 +278,6 @@ void LearnedIndexData::ReadModel(const string& filename, Version* v, FileMetaDat
 	ifs.read(reinterpret_cast<char*>(&file_number), sizeof(uint64_t));
 	ifs.read(reinterpret_cast<char*>(&error), sizeof(double));
 
-#if MODEL_COMPACTION
   string_keys = new std::vector<uint64_t>();
   string_keys->reserve(size+10);
 	for (int i=0; i<size; i++) {
@@ -339,7 +285,6 @@ void LearnedIndexData::ReadModel(const string& filename, Version* v, FileMetaDat
 		ifs.read(reinterpret_cast<char*>(&key), sizeof(uint64_t));
 		string_keys->emplace_back(key);
 	}
-#endif
 
 	ifs.close();
   learned.store(true);
@@ -359,7 +304,6 @@ bool LearnedIndexData::Deleted() {
 void LearnedIndexData::MarkDelete() {
 	deleted.store(true);
 
-#if MODEL_COMPACTION
 	mutex_delete_.Lock();
 	if (!learning.load() && string_keys) {
 		delete string_keys;
@@ -372,14 +316,6 @@ void LearnedIndexData::MarkDelete() {
 		string_segments.shrink_to_fit();
 	}
 	mutex_delete_.Unlock();
-#else
-	if (is_retrained_) {
-		string_segments_bak.clear();
-		string_segments_bak.shrink_to_fit();
-	}
-	string_segments.clear();
-	string_segments.shrink_to_fit();
-#endif
 }
 
 void FileLearnedIndexData::DeleteModel(int number) {

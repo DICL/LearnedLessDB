@@ -50,7 +50,6 @@ int main(int argc, char* argv[]){
   // Copy DB
 #if YCSB_COPYDB
 	if (copy_db) {
-	  fprintf(stdout, "%s: Copy DB start\n", GetDayTime().c_str());
 		std::string data_dir_mix = data_dir + "_mix";
 	  std::string remove_command = "rm -rf " + data_dir_mix;
 		std::string copy_command = "cp -r " + data_dir + " " + data_dir_mix;
@@ -58,7 +57,6 @@ int main(int argc, char* argv[]){
 		rc = system(remove_command.c_str());
 	  rc = system(copy_command.c_str());
 		data_dir = data_dir_mix;
-	  fprintf(stdout, "%s: Copy DB finished\n", GetDayTime().c_str());
 	}
 #endif
 
@@ -66,7 +64,6 @@ int main(int argc, char* argv[]){
   leveldb::DB* db = nullptr;
 #if !YCSB_COPYDB				// workload loading 후 DB Open
   leveldb::Status s = leveldb::DB::Open(options, data_dir, &db);
-  std::cout << "DB Opened main.cc\n";
 #endif
 
   // Init and Run Workloads
@@ -80,12 +77,7 @@ int main(int argc, char* argv[]){
 	}
 #else
   runner.run_all();
-
-	fprintf(stdout, "Start deleting db: %s\n", GetDayTime().c_str());
-	fflush(stdout);
 	delete db;
-	fprintf(stdout, "Finish deleting db: %s\n", GetDayTime().c_str());
-	fflush(stdout);
 #endif
 
 	for (auto& wl : workloads) delete wl;

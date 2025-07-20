@@ -10,7 +10,6 @@
 #include <cstdint>
 #include "koo/koo.h"
 
-#if MODEL_COMPACTION
 namespace leveldb {
 
 class Compaction;
@@ -31,6 +30,5 @@ extern Iterator* NewMergingWithModelIterator(
 extern void PrintIterStats(Iterator* iter);
 extern std::pair<void*, std::vector<uint64_t>*> ReturnMergeModel(bool include_current, Iterator* iter);
 }  // namespace leveldb
-#endif
 
 #endif  // STORAGE_LEVELDB_TABLE_MERGER_H_

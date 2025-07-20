@@ -18,7 +18,6 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include "hyperleveldb/status.h"
-#include "koo/koo.h"
 
 
 namespace leveldb {
@@ -160,11 +159,7 @@ class Env {
   // Sleep/delay the thread for the perscribed number of micro-seconds.
   virtual void SleepForMicroseconds(int micros) = 0;
 
-#if RETRAIN3
 	virtual void PrepareLearning(int level, FileMetaData* meta, bool high_pri = true) {};
-#else
-	virtual void PrepareLearning(int level, FileMetaData* meta) {};
-#endif
 	virtual void StopLearning() {};
 	virtual void SetPrepareDeleteOff() {};
 

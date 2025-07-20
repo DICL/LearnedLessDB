@@ -9,7 +9,6 @@
 #include "db/version_edit.h"
 #include "table/format.h"
 #include "hyperleveldb/iterator.h"
-#include "koo/koo.h"
 
 
 namespace leveldb {
