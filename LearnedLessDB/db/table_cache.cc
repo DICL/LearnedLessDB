@@ -118,7 +118,6 @@ Status TableCache::Get(const ReadOptions& options,
 #if TIME_R || TIME_R_LEVEL || AC_TEST2
 	std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
 #endif
-#if LEARN
 	// Check if model exists
 	koo::LearnedIndexData* model = koo::file_data->GetModelForLookup(file_number);
 	if (model != nullptr && model->Learned()) {
@@ -169,7 +168,6 @@ Status TableCache::Get(const ReadOptions& options,
 #endif
 		return s;
 	}
-#endif
   Cache::Handle* handle = NULL;
   Status s = FindTable(file_number, file_size, &handle);
   if (s.ok()) {
@@ -201,7 +199,6 @@ void TableCache::Evict(uint64_t file_number) {
   cache_->Erase(Slice(buf, sizeof(buf)));
 }
 
-#if LEARN
 Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slice& k, 
 														void* arg, void (*saver)(void*, const Slice&, const Slice&),
 #if RETRAIN || LOOKUP_ACCURACY
@@ -619,7 +616,6 @@ void TableCache::TestModelAccuracy(uint64_t& file_number, uint64_t& file_size) {
 		t->TestModelAccuracy(file_number);
 	}
 }
-#endif
 #endif
 
 }  // namespace leveldb

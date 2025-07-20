@@ -17,9 +17,7 @@
 #include "koo/koo.h"
 #include "db/version_set.h"
 
-#if LEARN
 namespace koo { class LearnedIndexData; }
-#endif
 
 namespace leveldb {
 
@@ -57,7 +55,6 @@ class TableCache {
   // Evict any entry for the specified file number
   void Evict(uint64_t file_number);
 
-#if LEARN
 	Status ModelGet(uint64_t file_number, uint64_t file_size, const Slice& k,
 									void* arg, void (*handle_result)(void*, const Slice&, const Slice&),
 #if RETRAIN || LOOKUP_ACCURACY
@@ -67,7 +64,6 @@ class TableCache {
 	bool FillData(const ReadOptions& options, FileMetaData* meta, koo::LearnedIndexData* data);
 #if MODEL_ACCURACY
 	void TestModelAccuracy(uint64_t& file_number, uint64_t& file_size);
-#endif
 #endif
 
  private:

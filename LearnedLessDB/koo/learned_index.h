@@ -24,7 +24,6 @@ namespace leveldb { class FileMetaData; }
 
 namespace koo {
 
-#if LEARN
 
     class LearnedIndexData;
 
@@ -76,12 +75,10 @@ namespace koo {
         std::atomic<bool> aborted;
         bool learned_not_atomic;
         std::atomic<bool> learning;
-#if LEARN
 				bool deleted_not_atomic;
 				std::atomic<bool> deleted;
 #if MODEL_COMPACTION
 				port::Mutex mutex_delete_;
-#endif
 #endif
 #if MERGE
 				bool merged;
@@ -90,15 +87,9 @@ namespace koo {
 #endif
 #endif
     public:
-#if LEARN
 				uint64_t file_number;
-#endif
 #if RETRAIN2
 				bool error_extented = false;
-#if AC_TEST
-				//std::atomic<uint32_t> extended_cnt = 0;
-				//std::atomic<uint32_t> actual_extended_cnt = 0;
-#endif
 #endif
         // is the data of this model filled (ready for learning)
         bool filled;
@@ -115,20 +106,10 @@ namespace koo {
         std::vector<Segment> string_segments_bak;
 #endif
 #if MODEL_COMPACTION
-        //bool is_replaced_ = false;
-        //SpinLock string_segments_lock_;
         Segment GetSegment(int offset) {
-            //std::unique_lock<SpinLock> lock(string_segments_lock_);
-            /*if (is_replaced_)
-                return string_segments_bak[offset];
-            else*/
                 return string_segments[offset];
         }
         size_t GetSegmentSize() {
-            //std::unique_lock<SpinLock> lock(string_segments_lock_);
-            /*if (is_replaced_)
-                return string_segments_bak.size();
-            else*/
                 return string_segments.size();
         }
         // all keys in the file/level to be leraned from
@@ -150,8 +131,6 @@ namespace koo {
 //        double gain_p = 0;
 //        uint64_t file_size = 0;
 
-
-
 #if MERGE
 #if RETRAIN
         explicit LearnedIndexData(uint64_t number) : file_number(number), error(koo::learn_model_error), learned(false), 
@@ -172,11 +151,9 @@ namespace koo {
 #endif					// MERGE
 
         LearnedIndexData(const LearnedIndexData& other) = delete;
-#if LEARN
         ~LearnedIndexData();
         bool Deleted();
         void MarkDelete();
-#endif
 
         // Inference function. Return the predicted interval.
         // If the key is in the training set, the output interval guarantees to include the key
@@ -197,8 +174,6 @@ namespace koo {
 				void SetMergedModel(std::vector<Segment>& segs);
 				bool Merged();
 #if RETRAIN
-				//bool InitModelForRetraining();
-				//bool Retraining();
 				void FreezeModel();
 				void UnfreezeModel();
 				bool SetRetraining();
@@ -236,11 +211,9 @@ namespace koo {
         std::pair<uint64_t, uint64_t> GetPosition(Slice& key, int file_num);
         //std::pair<uint64_t, uint64_t> GetPosition(const Slice& key, int file_num);
         LearnedIndexData* GetModel(int number);
-#if LEARN
         LearnedIndexData* GetModelImm(int number);
         LearnedIndexData* GetModelForLookup(int number);
 				void DeleteModel(int number);
-#endif
         ~FileLearnedIndexData();
     };
 
@@ -252,7 +225,6 @@ namespace koo {
 
     };
 
-#endif
 
 }
 

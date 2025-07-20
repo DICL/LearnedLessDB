@@ -30,9 +30,7 @@ class SequentialFile;
 class Slice;
 class WritableFile;
 class ConcurrentWritableFile;
-#if LEARN
 class FileMetaData;
-#endif
 
 class Env {
  public:
@@ -162,7 +160,6 @@ class Env {
   // Sleep/delay the thread for the perscribed number of micro-seconds.
   virtual void SleepForMicroseconds(int micros) = 0;
 
-#if LEARN
 #if RETRAIN3
 	virtual void PrepareLearning(int level, FileMetaData* meta, bool high_pri = true) {};
 #else
@@ -170,7 +167,6 @@ class Env {
 #endif
 	virtual void StopLearning() {};
 	virtual void SetPrepareDeleteOff() {};
-#endif
 
  private:
   // No copying allowed

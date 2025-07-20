@@ -21,9 +21,7 @@ struct Options;
 class RandomAccessFile;
 struct ReadOptions;
 class TableCache;
-#if LEARN
 class FilterBlockReader;
-#endif
 
 // A Table is a sorted map from strings to strings.  Tables are
 // immutable and persistent.  A Table may be safely accessed from
@@ -64,7 +62,6 @@ class Table {
 
  private:
   friend class TableCache;
-#if LEARN
 	struct Rep {
 	  Rep()
     : options(),
@@ -92,9 +89,6 @@ class Table {
 	  Rep(const Rep&);
 		Rep& operator = (const Rep&);
 	};
-#else
-  struct Rep;
-#endif
   Rep* rep_;
 
   explicit Table(Rep* rep) : rep_(rep) { }
@@ -112,11 +106,9 @@ class Table {
   void ReadMeta(const Footer& footer);
   void ReadFilter(const Slice& filter_handle_value);
 
-#if LEARN
   void FillData(const ReadOptions& options, koo::LearnedIndexData* data);
 #if MODEL_ACCURACY
   void TestModelAccuracy(uint64_t& file_number);
-#endif
 #endif
 
   // No copying allowed

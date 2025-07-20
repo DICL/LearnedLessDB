@@ -857,9 +857,7 @@ VersionSet::VersionSet(const std::string& dbname,
 }
 
 VersionSet::~VersionSet() {
-#if LEARN
 	current_->WriteModel();
-#endif
   current_->Unref();
   assert(dummy_versions_.next_ == &dummy_versions_);  // List must be empty
   delete descriptor_log_;
@@ -1779,7 +1777,6 @@ void Compaction::MarkFilesBeingCompacted(bool mark_as_compacted) {
 	}
 }
 
-#if LEARN
 bool Version::FillData(const ReadOptions& options, FileMetaData* meta, koo::LearnedIndexData* data) {
 	return vset_->table_cache_->FillData(options, meta, data);
 }
@@ -1845,7 +1842,6 @@ void Version::OfflineFileLearn() {
 void Version::TestModelAccuracy(uint64_t& file_number, uint64_t& file_size) {
 	vset_->table_cache_->TestModelAccuracy(file_number, file_size);
 }
-#endif
 #endif
 
 }  // namespace leveldb

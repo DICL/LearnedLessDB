@@ -17,8 +17,6 @@
 
 namespace koo {
 
-#if LEARN
-
 std::pair<uint64_t, uint64_t> LearnedIndexData::GetPosition(
 #if MERGE
     Slice& target_x) {
@@ -154,8 +152,6 @@ bool LearnedIndexData::Learn() {
 	max_key = string_keys->back();
   size = string_keys->size();
 #else
-  //min_key = (uint64_t) std::stoull(string_keys.front());
-  //max_key = (uint64_t) std::stoull(string_keys.back());
 	min_key = string_keys.front();
 	max_key = string_keys.back();
   size = string_keys.size();
@@ -179,13 +175,6 @@ bool LearnedIndexData::Learn() {
 #endif
   // fill in a dummy last segment (used in segment binary search)
   segs.push_back((Segment){max_key, 0, 0, 0, 0});
-
- /* if (string_segments.size() > 0 && !is_replaced_) {
-    //std::unique_lock<SpinLock> lock(string_segments_lock_);
-    string_segments_bak = std::move(string_segments);
-    is_replaced_ = true;
-  }*/
-  //string_segments = std::move(segs);
 
 #if RETRAIN
 	if (retraining.load()) {
@@ -295,7 +284,6 @@ uint64_t LearnedIndexData::FileLearn(void* arg) {
 		self->mutex_delete_.Unlock();
 #endif
 	}
-  //if (!fresh_write) delete mas->meta;
   delete mas->meta;
   delete mas;
 	return entered ? 1 : 0;
@@ -441,7 +429,6 @@ void LearnedIndexData::ReadModel(const string& filename, Version* v, FileMetaDat
   learned.store(true);
 }
 
-#if LEARN
 LearnedIndexData::~LearnedIndexData() {
 }
 
@@ -486,7 +473,6 @@ void FileLearnedIndexData::DeleteModel(int number) {
 	file_learned_index_data[number]->MarkDelete();
 	return;
 }
-#endif
 
 LearnedIndexData* FileLearnedIndexData::GetModel(int number) {
   if (file_learned_index_data.size() <= number) {
@@ -511,7 +497,6 @@ LearnedIndexData* FileLearnedIndexData::GetModel(int number) {
   return file_learned_index_data[number];
 }
 
-#if LEARN
 LearnedIndexData* FileLearnedIndexData::GetModelImm(int number) {
   return file_learned_index_data[number];
 }
@@ -529,7 +514,6 @@ LearnedIndexData* FileLearnedIndexData::GetModelForLookup(int number) {
 	rw_lock_.UnlockRead();
   return file_learned_index_data[number];
 }
-#endif
 
 bool FileLearnedIndexData::FillData(Version* version, FileMetaData* meta) {
   LearnedIndexData* model = GetModel(meta->number);
@@ -548,6 +532,5 @@ FileLearnedIndexData::~FileLearnedIndexData() {
   }
 }
 
-#endif
 
 }  // namespace koo

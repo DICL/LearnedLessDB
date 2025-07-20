@@ -17,51 +17,15 @@
 #include "db/version_set.h"
 #include "koo/koo.h"
 
-#if LEARN
 namespace koo { class LearnedIndexData; }
-#endif
 
 namespace leveldb {
 
-#if LEARN
 Table::Rep::~Rep() {
   delete filter;
   delete [] filter_data;
   delete index_block;
 }
-#else
-struct Table::Rep {
-  Rep()
-    : options(),
-      status(),
-      file(NULL),
-      cache_id(),
-      filter(),
-      filter_data(),
-      metaindex_handle(),
-      index_block() {
-  }
-  ~Rep() {
-    delete filter;
-    delete [] filter_data;
-    delete index_block;
-  }
-
-  Options options;
-  Status status;
-  RandomAccessFile* file;
-  uint64_t cache_id;
-  FilterBlockReader* filter;
-  const char* filter_data;
-
-  BlockHandle metaindex_handle;  // Handle to metaindex_block: saved from footer
-  Block* index_block;
-
- private:
-  Rep(const Rep&);
-  Rep& operator = (const Rep&);
-};
-#endif
 
 Status Table::Open(const Options& options,
                    RandomAccessFile* file,
@@ -300,7 +264,6 @@ uint64_t Table::ApproximateOffsetOf(const Slice& key) const {
   return result;
 }
 
-#if LEARN
 void Table::FillData(const ReadOptions& options, koo::LearnedIndexData* data) {
 	if (data->filled) return;
   Status status;
@@ -475,7 +438,6 @@ void Table::TestModelAccuracy(uint64_t& file_number) {
 	of_diff.close();
 	
 }
-#endif
 #endif
 
 }  // namespace leveldb

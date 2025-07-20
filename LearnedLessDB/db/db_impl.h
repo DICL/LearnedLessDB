@@ -95,11 +95,9 @@ class DBImpl : public DB {
 
 	std::atomic<int> version_count;
 	koo::VLog* vlog;
-#if LEARN
 	Version* GetCurrentVersion();
 	void ReturnCurrentVersion(Version* version);
 	const std::string GetDBName() { return dbname_; }
-#endif
 
  private:
   friend class DB;

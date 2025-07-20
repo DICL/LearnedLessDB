@@ -328,9 +328,7 @@ DBImpl::~DBImpl() {
   if (owns_cache_) {
     delete options_.block_cache;
   }
-#if LEARN
 	delete koo::file_data;
-#endif
 	delete vlog;
 }
 
@@ -446,11 +444,9 @@ void DBImpl::DeleteObsoleteFiles() {
             int(type),
             static_cast<unsigned long long>(number));
         env_->DeleteFile(dbname_ + "/" + filenames[i]);
-#if LEARN
 				if (type == kTableFile) {
 					koo::file_data->DeleteModel(number);
 				}
-#endif
       }
     }
   }
@@ -1138,7 +1134,6 @@ Status DBImpl::FinishCompactionOutputFile(CompactionState* compact,
 	koo::file_size[compact->compaction->level()+1] += current_bytes;
 #endif
 
-#if LEARN
 #if MERGE
 	if (!compact->merge_model) {
 #endif
@@ -1152,7 +1147,6 @@ Status DBImpl::FinishCompactionOutputFile(CompactionState* compact,
 	env_->PrepareLearning(level, meta);
 #if MERGE
 	}
-#endif
 #endif
 
   if (s.ok() && current_entries > 0) {
@@ -2432,10 +2426,8 @@ Status DB::Open(const Options& options, const std::string& dbname,
                 DB** dbptr) {
   *dbptr = NULL;
 	koo::env = options.env;
-#if LEARN
 	koo::file_data = new koo::FileLearnedIndexData();
 	koo::initial_time = __rdtsc();
-#endif
 	options.env->SetPrepareDeleteOff();
 #if RETRAIN && !RETRAIN2
 	fprintf(stdout, "Learned Model Error: %f, Retraining Threshold: %f\n", koo::learn_model_error, koo::merge_model_error);
@@ -2467,9 +2459,7 @@ Status DB::Open(const Options& options, const std::string& dbname,
     }
     if (s.ok()) {
       impl->DeleteObsoleteFiles();
-#if LEARN
 			impl->versions_->current()->ReadModel();
-#endif
       impl->bg_compaction_cv_.Signal();
       impl->bg_memtable_cv_.Signal();
     }
@@ -2527,7 +2517,6 @@ Status DestroyDB(const std::string& dbname, const Options& options) {
   return result;
 }
 
-#if LEARN
 Version* DBImpl::GetCurrentVersion() {
 	MutexLock l(&mutex_);
 	Version* ver = versions_->current();
@@ -2539,7 +2528,5 @@ void DBImpl::ReturnCurrentVersion(Version* version) {
 	MutexLock l(&mutex_);
 	version->Unref();
 }
-
-#endif
 
 }  // namespace leveldb

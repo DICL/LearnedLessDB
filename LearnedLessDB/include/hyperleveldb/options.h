@@ -6,10 +6,7 @@
 #define STORAGE_LEVELDB_INCLUDE_OPTIONS_H_
 
 #include <stddef.h>
-#include "koo/koo.h"
-#if LEARN
-#include "filter_policy.h"		// KOO
-#endif
+#include "filter_policy.h"
 
 namespace leveldb {
 

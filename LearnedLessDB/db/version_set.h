@@ -24,9 +24,7 @@
 #include "port/thread_annotations.h"
 #include "koo/koo.h"
 
-#if LEARN
 namespace koo { class LearnedIndexData; }
-#endif
 
 namespace leveldb {
 
@@ -162,7 +160,6 @@ class Version {
   // Return a human readable string that describes this version's contents.
   std::string DebugString() const;
 
-#if LEARN
 	bool FillData(const ReadOptions& options, FileMetaData* meta, koo::LearnedIndexData* data);
 	void WriteModel();
 	void ReadModel();
@@ -170,14 +167,11 @@ class Version {
 #if MODEL_ACCURACY
 	void TestModelAccuracy(uint64_t& file_number, uint64_t& file_size);
 #endif
-#endif
 
  private:
   friend class Compaction;
   friend class VersionSet;
-#if LEARN
 	friend class koo::LearnedIndexData;
-#endif
 
   class LevelFileNumIterator;
   Iterator* NewConcatenatingIterator(const ReadOptions&, unsigned level, uint64_t num) const;
@@ -350,9 +344,7 @@ class VersionSet {
 
  private:
   class Builder;
-#if LEARN
 	friend class koo::LearnedIndexData;
-#endif
 
   friend class Compaction;
   friend class Version;

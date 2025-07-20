@@ -110,11 +110,7 @@ class MmapLimiter {
   MmapLimiter()
     : mu_(),
       allowed_() {
-#if LEARN
-    SetAllowed(sizeof(void*) >= 8 ? 1024*1024 : 0);			// Bourbon의 adgMod::fd_limit
-#else
-    SetAllowed(sizeof(void*) >= 8 ? 1000 : 0);
-#endif
+    SetAllowed(sizeof(void*) >= 8 ? 1024*1024 : 0);			// Bourbon adgMod::fd_limit
   }
 
   // If another mmap slot is available, acquire it and return true.
@@ -842,7 +838,6 @@ class PosixEnv : public Env {
     usleep(micros);
   }
 
-#if LEARN
 	void PrepareLearn() {
 		prepare_queue_mutex_.Lock();
 		running_learning_threads++;
@@ -1023,12 +1018,9 @@ class PosixEnv : public Env {
 	void SetPrepareDeleteOff() {
 		prepare_delete = false;
 	}
-#endif
 
  private:
-#if LEARN
  friend class TableCache;
-#endif
 
   void PthreadCall(const char* label, int result) {
     if (result != 0) {
@@ -1058,7 +1050,6 @@ class PosixEnv : public Env {
   PosixLockTable locks_;
   MmapLimiter mmap_limit_;
 
-#if LEARN
 	typedef std::pair<int, FileMetaData*> LearnParam;		// <level, meta>
 #if RETRAIN3
 	std::queue<LearnParam> high_q;
@@ -1073,7 +1064,6 @@ class PosixEnv : public Env {
 	std::atomic<int> running_learning_threads{0};
 	std::mutex stop_mutex;
 	std::condition_variable stop_cv;
-#endif
 };
 
 PosixEnv::PosixEnv() : page_size_(getpagesize()),
@@ -1083,11 +1073,9 @@ PosixEnv::PosixEnv() : page_size_(getpagesize()),
                        started_bgthread_(false),
                        queue_(),
                        locks_(),
-#if LEARN
 											 preparing_thread_started(false),
 											 preparing_queue_cv_(&prepare_queue_mutex_),
 											 prepare_delete(false),
-#endif
                        mmap_limit_() {
   PthreadCall("mutex_init", pthread_mutex_init(&mu_, NULL));
   PthreadCall("cvar_init", pthread_cond_init(&bgsignal_, NULL));
