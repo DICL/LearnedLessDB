@@ -30,6 +30,9 @@ class SOSDGenerator : public Generator<uint64_t> {
 		std::mt19937 generator(seed);
 		std::shuffle(keys.begin(), keys.end(), generator);
 
+		fprintf(stdout, "Read finished\n");
+		fflush(stdout);
+
   	Next(); 
   }
   

@@ -31,6 +31,9 @@ class SOSDReqGenerator : public Generator<uint64_t> {
 		std::mt19937 generator(seed);
 		std::shuffle(lookups.begin(), lookups.end(), generator);
 
+		fprintf(stdout, "Read finished req\n");
+		fflush(stdout);
+
   	Next(); 
   }
   
