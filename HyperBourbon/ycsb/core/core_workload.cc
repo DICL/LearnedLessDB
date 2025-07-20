@@ -12,10 +12,8 @@
 #include "skewed_latest_generator.h"
 #include "const_generator.h"
 #include "core_workload.h"
-#if YCSB_SOSD
 #include "sosd_generator.h"
 #include "sosd_generator_req.h"
-#endif
 
 // zzunny deleted : #include "util/debug.h"
 
@@ -124,9 +122,8 @@ void CoreWorkload::Init(const utils::Properties &p, const bool is_load) {
     ordered_inserts_ = true;
   }
   
-#if !YCSB_SOSD
-  key_generator_ = new CounterGenerator(insert_start);
-#endif
+  if (request_dist != "sosd")
+		key_generator_ = new CounterGenerator(insert_start);
   
   if (read_proportion > 0) {
     op_chooser_.AddValue(READ, read_proportion);
@@ -162,32 +159,14 @@ void CoreWorkload::Init(const utils::Properties &p, const bool is_load) {
   } else if (request_dist == "latest") {
     key_chooser_ = new SkewedLatestGenerator(insert_key_sequence_);
     
-#if YCSB_SOSD
-  } else if (request_dist == "sosd_books") {
-		key_generator_ = new SOSDGenerator(0);
-    if (!is_load_) key_chooser_ = new SOSDReqGenerator(0);
-  } else if (request_dist == "sosd_osm") {
-		key_generator_ = new SOSDGenerator(1);
-    if (!is_load_) key_chooser_ = new SOSDReqGenerator(1);
-  } else if (request_dist == "sosd_normal") {
-		key_generator_ = new SOSDGenerator(2);
-    if (!is_load_) key_chooser_ = new SOSDReqGenerator(2);
-  } else if (request_dist == "sosd_lognormal") {
-		key_generator_ = new SOSDGenerator(3);
-    if (!is_load_) key_chooser_ = new SOSDReqGenerator(3);
-  } else if (request_dist == "sosd_uniform_dense") {
-		key_generator_ = new SOSDGenerator(4);
-    if (!is_load_) key_chooser_ = new SOSDReqGenerator(4);
-  } else if (request_dist == "sosd_uniform_sparse") {
-		key_generator_ = new SOSDGenerator(5);
-    if (!is_load_) key_chooser_ = new SOSDReqGenerator(5);
-  } else if (request_dist == "sosd_fb") {
-		key_generator_ = new SOSDGenerator(6);
-    if (!is_load_) key_chooser_ = new SOSDReqGenerator(6);
-  } else if (request_dist == "sosd_wiki") {
-		key_generator_ = new SOSDGenerator(7);
-    if (!is_load_) key_chooser_ = new SOSDReqGenerator(7);
-#endif
+  } else if (request_dist == "sosd") {
+  	koo::run_sosd = true;
+  	koo::sosd_data_path = p.GetProperty("sosd_data_path");
+  	koo::sosd_lookups_path = p.GetProperty("sosd_lookups_path");
+
+		if (is_load_) key_generator_ = new SOSDGenerator();
+		else key_chooser_ = new SOSDReqGenerator();
+
   } else {
     throw utils::Exception("Unknown request distribution: " + request_dist);
   }

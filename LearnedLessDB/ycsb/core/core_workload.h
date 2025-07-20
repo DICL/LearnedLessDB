@@ -226,41 +226,38 @@ inline std::string CoreWorkload::NextSequenceKey() {
 
 inline std::string CoreWorkload::NextTransactionKey() {
   uint64_t key_num;
-#if YCSB_SOSD
-  key_num = key_chooser_->Next();
-#else
-  do {
-    key_num = key_chooser_->Next();
-  } while (key_num > insert_key_sequence_.Last());
-#endif
+	if (koo::run_sosd) key_num = key_chooser_->Next();
+	else {
+		do {
+			key_num = key_chooser_->Next();
+	  } while (key_num > insert_key_sequence_.Last());
+	}
   return BuildKeyName(key_num);
 }
 
 inline std::string CoreWorkload::BuildKeyName(uint64_t key_num) {
-#if !YCSB_SOSD
-  if (!ordered_inserts_) {
+  if (!koo::run_sosd && !ordered_inserts_) {
     key_num = utils::Hash(key_num);
   }
-#endif
 #ifdef BR_NUMERIC_KEY
   return std::string((char*) &key_num, 8);
 #else
 
-#if YCSB_SOSD
-	std::string result(16, '\0');
-	for (int i=0; i<8; ++i) {
-		result[8 + i] = static_cast<char>((key_num >> (56 - i * 8)) & 0xFF);
+	if (koo::run_sosd) {
+		std::string result(16, '\0');
+		for (int i=0; i<8; ++i) {
+			result[8 + i] = static_cast<char>((key_num >> (56 - i * 8)) & 0xFF);
+		}
+		return result;
+	} else {
+		std::string key_str = std::to_string(key_num);
+	  key_str = key_str.substr(0, 16);
+		if (key_str.size() < 16) {
+			int i = 16 - key_str.size();
+	  	for (int j=0; j<i; j++) key_str = key_str.append(std::string("0"));
+		}
+		return key_str;
 	}
-	return result;
-#else
-  std::string key_str = std::to_string(key_num);
-  key_str = key_str.substr(0, 16);
-  if (key_str.size() < 16) {
-  	int i = 16 - key_str.size();
-  	for (int j=0; j<i; j++) key_str = key_str.append(std::string("0"));
-	}
-	return key_str;
-#endif
 
 #endif
 }

@@ -19,10 +19,13 @@
 #include <condition_variable>
 
 #define YCSB_COPYDB 1
-#define YCSB_SOSD 0
 #define NORMARLIZE_KEY 0		// key - min_key
 
 namespace koo {
+
+extern bool run_sosd;
+extern std::string sosd_data_path;
+extern std::string sosd_lookups_path;
 
 extern std::string model_dbname;
 extern double learn_model_error;

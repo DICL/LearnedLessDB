@@ -7,26 +7,16 @@
 #include "koo/koo.h"
 
 
-#if YCSB_SOSD
 namespace ycsbc {
 
 class SOSDReqGenerator : public Generator<uint64_t> {
  public:
   // Both min and max are inclusive
-  SOSDReqGenerator(uint32_t which) { 
+  SOSDReqGenerator() { 
   	counter_.store(0);
 
-		std::string filename = "";
-		if (which == 0) filename = "books_600M";
-		else if (which == 1) filename = "osm_cellids_600M";
-		else if (which == 2) filename = "normal_600M";
-		else if (which == 3) filename = "lognormal_600M";
-		else if (which == 4) filename = "uniform_dense_600M";
-		else if (which == 5) filename = "uniform_sparse_600M";
-		else if (which == 6) filename = "fb_200M";
-		else if (which == 7) filename = "wiki_ts_200M";
-
-  	std::ifstream in("/koo/SOSD/data/lookups/"+filename+"_uint64_equality_lookups_10M", std::ios::binary);
+		std::string filename = koo::sosd_lookups_path;
+  	std::ifstream in(filename, std::ios::binary);
   	if (!in.is_open()) {
   		fprintf(stderr, "unable to open %s\n", filename.c_str());
   		exit(1);
@@ -41,9 +31,6 @@ class SOSDReqGenerator : public Generator<uint64_t> {
 		std::mt19937 generator(seed);
 		std::shuffle(lookups.begin(), lookups.end(), generator);
 
-		fprintf(stdout, "Read finished req\n");
-		fflush(stdout);
-
   	Next(); 
   }
   
@@ -56,5 +43,4 @@ class SOSDReqGenerator : public Generator<uint64_t> {
 };
 
 } // ycsbc
-#endif
 

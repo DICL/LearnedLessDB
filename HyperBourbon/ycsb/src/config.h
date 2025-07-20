@@ -58,7 +58,6 @@ utils::Properties gen_workload_props(const char wl_char, const utils::Properties
       wp.SetProperty("workloadname", "Workload F");
       break;
     }
-#if YCSB_SOSD
     case 'x': {		// read-heavy
       wp.SetProperty("readproportion", "0.9"); 
       wp.SetProperty("updateproportion", "0.1");
@@ -83,7 +82,6 @@ utils::Properties gen_workload_props(const char wl_char, const utils::Properties
       wp.SetProperty("workloadname", "Workload write-heavy");
       break;
     }
-#endif
     default: {
       fprintf(stderr, "Invalid workload character: %c\n", wl_char);
       exit(0);
@@ -101,14 +99,16 @@ void set_default_props(utils::Properties* props) {
 	props->SetProperty("requestdistribution", "uniform");
   props->SetProperty("maxscanlength", "100");
   props->SetProperty("scanlengthdistribution", "uniform");
-
   props->SetProperty("threadcount", "1");
   props->SetProperty("max_write_buffer_number", "2");
+
   props->SetProperty("max_background_jobs", "2");
   props->SetProperty("max_learning_jobs", "1");
   props->SetProperty("learned_model_error_bound", "8");
   props->SetProperty("mod", "0");
   props->SetProperty("db_path", "/mnt-koo/db");
+  props->SetProperty("sosd_data_path", "");
+  props->SetProperty("sosd_lookups_path", "");
 }
 
 void parse_command_line_arguments(int argc, char* argv[], utils::Properties* props, std::vector<char>* wl_chars) {
@@ -131,6 +131,8 @@ void parse_command_line_arguments(int argc, char* argv[], utils::Properties* pro
     { "learned_model_error_bound", required_argument, 0, 0 }, 
     { "mod", required_argument, 0, 0 }, 
     { "db_path", required_argument, 0, 0 }, 
+    { "sosd_data_path", required_argument, 0, 0 },
+    { "sosd_lookups_path", required_argument, 0, 0 },
     { 0, 0, 0, 0 }
   };
   const static char* optstring = "n:t:w:d:";

@@ -1,5 +1,4 @@
 #!/bin/bash
-# YCSB_SOSD on
 
 set -e
 set -o pipefail
@@ -10,12 +9,8 @@ set -o pipefail
 recordcount=$((600*1000*1000))  # 100 M
 recordcount2=$((200*1000*1000))  # 100 M
 operationcount=$((10*1000*1000))  # 10 M
-#field_len=100
-#field_cnt=10  # value: 10*100 =~ 1 KB
 field_len=64
 field_cnt=1  # value: 10*100 =~ 1 KB
-#num_threads=10
-#req_dist="uniform"
 
 ##
 # build
@@ -23,68 +18,94 @@ cd ../build
 cmake --build . -- -j
 cd -
 ycsb=../build/ycsb
-date="05.18"
-db="hyperbourbon-always"
-#db="hyperbourbon-offline"
-#db="hyperbourbon-cba"
 
 num_threads=32
+num_bg=8
+num_l=4
+learned_error_bound=8
+mod=0			# 0: HyperBourbon(CBA), 1: HyperBourbon(Always), 2: HyperWiscKey
+db_path="/mnt-koo/db"
 
-for num in 1 2 3 4; do
+sosd_data_dir="/koo/SOSD/data"
+sosd_lookups_dir="/koo/SOSD/data/lookups"
 
-	for req_dist in sosd_fb sosd_wiki; do
-		rm -rf /mnt-koo/db/*
+
+
+for req_dist in wiki_ts_200M fb_200M; do
+
+	rm -rf ${db_path}/*
+
+	sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
+	$ycsb \
+		--recordcount=${recordcount2} \
+		--operationcount=${operationcount} \
+		--fieldlength=${field_len} \
+		--fieldcount=${field_cnt} \
+		--threads=${num_threads} \
+		--workloads="l" \
+		--distribution="sosd" \
+		--max_background_jobs=$(( num_bg + 1 )) \
+		--max_learning_jobs=${num_l} \
+		--learned_model_error_bound=${learned_error_bound} \
+		--mod=${mod} \
+		--db_path=${db_path} \
+		--sosd_data_path="${sosd_data_dir}/${req_dist}_uint64"
+
+	for wl in c x y; do
 		sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
 		$ycsb \
 			--recordcount=${recordcount2} \
-	    --operationcount=${operationcount} \
-		  --fieldlength=${field_len} \
+			--operationcount=${operationcount} \
+			--fieldlength=${field_len} \
 			--fieldcount=${field_cnt} \
 			--threads=${num_threads} \
-		  --workloads="l" \
-			--distribution=${req_dist} > /koo/tests/${db}/${date}/${req_dist}_200M-64Bvalue_t${num_threads}_LearnT4-${num}.txt
-
-		for num2 in 1 2; do
-			for wl in x y z c; do
-				sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
-				$ycsb \
-					--recordcount=${recordcount2} \
-			    --operationcount=${operationcount} \
-				  --fieldlength=${field_len} \
-					--fieldcount=${field_cnt} \
-					--threads=${num_threads} \
-				  --workloads=${wl} \
-					--distribution=${req_dist} > /koo/tests/${db}/${date}/${req_dist}_${wl}_200M-64Bvalue_10M_t${num_threads}_LearnT4-${num}${num2}.txt
-			done
-		done
+			--workloads=${wl} \
+			--distribution="sosd" \
+			--max_background_jobs=$(( num_bg + 1 )) \
+			--max_learning_jobs=${num_l} \
+			--learned_model_error_bound=${learned_error_bound} \
+			--mod=${mod} \
+			--db_path=${db_path} \
+			--sosd_lookups_path="${sosd_lookups_dir}/${req_dist}_uint64_equality_lookups_10M"
 	done
+done
 
-	for req_dist in sosd_osm sosd_normal sosd_lognormal sosd_uniform_dense sosd_uniform_sparse sosd_books; do
-		rm -rf /mnt-koo/db/*
+
+for req_dist in books_600M osm_cellids_600M normal_600M lognormal_600M; do
+
+	rm -rf ${db_path}/*
+
+	sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
+	$ycsb \
+		--recordcount=${recordcount} \
+		--operationcount=${operationcount} \
+		--fieldlength=${field_len} \
+		--fieldcount=${field_cnt} \
+		--threads=${num_threads} \
+		--workloads="l" \
+		--distribution="sosd" \
+		--max_background_jobs=$(( num_bg + 1 )) \
+		--max_learning_jobs=${num_l} \
+		--learned_model_error_bound=${learned_error_bound} \
+		--mod=${mod} \
+		--db_path=${db_path} \
+		--sosd_data_path="${sosd_data_dir}/${req_dist}_uint64"
+
+	for wl in c x y; do
 		sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
 		$ycsb \
 			--recordcount=${recordcount} \
-	    --operationcount=${operationcount} \
-		  --fieldlength=${field_len} \
+			--operationcount=${operationcount} \
+			--fieldlength=${field_len} \
 			--fieldcount=${field_cnt} \
 			--threads=${num_threads} \
-		  --workloads="l" \
-			--distribution=${req_dist} > /koo/tests/${db}/${date}/${req_dist}_600M-64Bvalue_t${num_threads}_LearnT4-${num}.txt
-
-		for num2 in 1 2; do
-			for wl in x y z c; do
-				sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
-				$ycsb \
-					--recordcount=${recordcount} \
-			    --operationcount=${operationcount} \
-				  --fieldlength=${field_len} \
-					--fieldcount=${field_cnt} \
-					--threads=${num_threads} \
-				  --workloads=${wl} \
-					--distribution=${req_dist} > /koo/tests/${db}/${date}/${req_dist}_${wl}_600M-64Bvalue_10M_t${num_threads}_LearnT4-${num}${num2}.txt
-			done
-		done
+			--workloads=${wl} \
+			--distribution="sosd" \
+			--max_background_jobs=$(( num_bg + 1 )) \
+			--max_learning_jobs=${num_l} \
+			--learned_model_error_bound=${learned_error_bound} \
+			--mod=${mod} \
+			--db_path=${db_path} \
+			--sosd_lookups_path="${sosd_lookups_dir}/${req_dist}_uint64_equality_lookups_10M"
 	done
-
-
 done

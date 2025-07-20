@@ -1,5 +1,4 @@
 #!/bin/bash
-# YCSB_SOSD on
 
 set -e
 set -o pipefail
@@ -20,68 +19,88 @@ cmake --build . -- -j
 cd -
 ycsb=../build/ycsb
 
+num_threads=32
 num_bg=8
-retraining_threshold=21
+learned_error_bound=8
+merged_error_bound=21
+db_path="/mnt-koo/db"
 
-for num_threads in 32; do
+sosd_data_dir="/koo/SOSD/data"
+sosd_lookups_dir="/koo/SOSD/data/lookups"
 
-	for req_dist in sosd_fb sosd_wiki; do
-		rm -rf /mnt-koo/db/*
+
+for req_dist in wiki_ts_200M fb_200M; do
+
+	rm -rf ${db_path}/*
+
+	sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
+	$ycsb \
+		--recordcount=${recordcount2} \
+		--operationcount=${operationcount} \
+		--fieldlength=${field_len} \
+		--fieldcount=${field_cnt} \
+		--threads=${num_threads} \
+		--workloads="l" \
+		--max_background_jobs=$(( num_bg + 1 )) \
+		--distribution="sosd" \
+		--learned_model_error_bound=${learned_error_bound} \
+		--merged_model_error_bound=${merged_error_bound} \
+		--db_path=${db_path} \
+		--sosd_data_path="${sosd_data_dir}/${req_dist}_uint64"
+
+	for wl in c x y; do
 		sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
 		$ycsb \
 			--recordcount=${recordcount2} \
-	    --operationcount=${operationcount} \
-		  --fieldlength=${field_len} \
+			--operationcount=${operationcount} \
+			--fieldlength=${field_len} \
 			--fieldcount=${field_cnt} \
 			--threads=${num_threads} \
-		  --workloads="l" \
-		  --max_background_jobs=$(( num_bg + 1 )) \
-			--distribution=${req_dist} \
-			--merged_model_error_bound=${retraining_threshold}
-
-		for wl in c x y; do
-			sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
-			$ycsb \
-				--recordcount=${recordcount2} \
-		    --operationcount=${operationcount} \
-			  --fieldlength=${field_len} \
-				--fieldcount=${field_cnt} \
-				--threads=${num_threads} \
-			  --workloads=${wl} \
-				--max_background_jobs=$(( num_bg + 1 )) \
-				--distribution=${req_dist} \
-				--merged_model_error_bound=${retraining_threshold}
-		done
+			--workloads=${wl} \
+			--max_background_jobs=$(( num_bg + 1 )) \
+			--distribution="sosd" \
+			--learned_model_error_bound=${learned_error_bound} \
+			--merged_model_error_bound=${merged_error_bound} \
+			--db_path=${db_path} \
+			--sosd_lookups_path="${sosd_lookups_dir}/${req_dist}_uint64_equality_lookups_10M"
 	done
+done
 
-	for req_dist in sosd_osm sosd_books; do
-		rm -rf /mnt-koo/db/*
+
+for req_dist in books_600M osm_cellids_600M normal_600M lognormal_600M; do
+
+	rm -rf ${db_path}/*
+
+	sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
+	$ycsb \
+		--recordcount=${recordcount} \
+		--operationcount=${operationcount} \
+		--fieldlength=${field_len} \
+		--fieldcount=${field_cnt} \
+		--threads=${num_threads} \
+		--workloads="l" \
+		--max_background_jobs=$(( num_bg + 1 )) \
+		--distribution="sosd" \
+		--learned_model_error_bound=${learned_error_bound} \
+		--merged_model_error_bound=${merged_error_bound} \
+		--db_path=${db_path} \
+		--sosd_data_path="${sosd_data_dir}/${req_dist}_uint64"
+
+	for wl in c x y; do
 		sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
 		$ycsb \
 			--recordcount=${recordcount} \
-	    --operationcount=${operationcount} \
-		  --fieldlength=${field_len} \
+			--operationcount=${operationcount} \
+			--fieldlength=${field_len} \
 			--fieldcount=${field_cnt} \
 			--threads=${num_threads} \
-		  --workloads="l" \
-		  --max_background_jobs=$(( num_bg + 1 )) \
-			--distribution=${req_dist} \
-			--merged_model_error_bound=${retraining_threshold}
-
-		for wl in c x y; do
-			sync; echo 1 | sudo tee /proc/sys/vm/drop_caches
-			$ycsb \
-				--recordcount=${recordcount} \
-		    --operationcount=${operationcount} \
-			  --fieldlength=${field_len} \
-				--fieldcount=${field_cnt} \
-				--threads=${num_threads} \
-			  --workloads=${wl} \
-				--max_background_jobs=$(( num_bg + 1 )) \
-				--distribution=${req_dist} \
-				--merged_model_error_bound=${retraining_threshold}
-		done
+			--workloads=${wl} \
+			--max_background_jobs=$(( num_bg + 1 )) \
+			--distribution="sosd" \
+			--learned_model_error_bound=${learned_error_bound} \
+			--merged_model_error_bound=${merged_error_bound} \
+			--db_path=${db_path} \
+			--sosd_lookups_path="${sosd_lookups_dir}/${req_dist}_uint64_equality_lookups_10M"
 	done
-
-
 done
+

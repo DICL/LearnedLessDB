@@ -108,28 +108,27 @@ inline int Slice::compare(const Slice& b) const {
 }
 
 inline uint64_t Slice::SliceToInteger() {
-#if YCSB_SOSD
-  if (size_ != 16) {
-  	throw std::invalid_argument("Input string must be exactly 16 bytes.");
-	}
-	uint64_t num = 0;
-	for (int i=0; i<8; i++) {
-		num |= static_cast<uint64_t>(static_cast<unsigned char>(data_[8 + i])) << (56 - i * 8);
-	}
-  return num;
-#else
-  uint64_t num = 0;
-	bool leading_zeros = true;
+	if (koo::run_sosd) {
+	  if (size_ != 16) {
+			throw std::invalid_argument("Input string must be exactly 16 bytes.");
+		}
+		uint64_t num = 0;
+		for (int i=0; i<8; i++) {
+			num |= static_cast<uint64_t>(static_cast<unsigned char>(data_[8 + i])) << (56 - i * 8);
+		}
+		return num;
+	} else {
+	  uint64_t num = 0;
+		bool leading_zeros = true;
 
-	for (size_t i=0; i<size_; ++i) {
-		int temp = data_[i];
-    if (leading_zeros && temp == '0') continue;
-    leading_zeros = false;
-    num = (num << 3) + (num << 1) + temp - 48;
-  }
-  return num;
-#endif
-
+		for (size_t i=0; i<size_; ++i) {
+			int temp = data_[i];
+			if (leading_zeros && temp == '0') continue;
+	    leading_zeros = false;
+		  num = (num << 3) + (num << 1) + temp - 48;
+	  }
+		return num;
+	}
 }
 
 }  // namespace leveldb

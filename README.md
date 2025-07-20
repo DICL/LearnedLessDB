@@ -1,13 +1,8 @@
 # LearnedLessDB
 
-HyperWiscKey
-HyperBourbon(CBA)
-HyperBourbon(Always)
 
 Install
 =======
-
-Get up and running quickly:
 
     $ autoreconf -i
     $ ./configure
@@ -26,6 +21,5 @@ Run YCSB
 Run SOSD
 ========
 
-    $ vi koo/koo.h --> YCSB_SOSD 1
     $ source ready_ycsb.sh
     $ ./run_sosd

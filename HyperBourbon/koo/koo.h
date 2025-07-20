@@ -16,10 +16,13 @@
 #include <mutex>
 #include <condition_variable>
 
-#define YCSB_COPYDB 1		// SpanDB ycsb load 외 워크로드 전 db copy -> copy한 db에서 워크로드 실행
-#define YCSB_SOSD 0
+#define YCSB_COPYDB 1
 
 namespace koo {
+
+extern bool run_sosd;
+extern std::string sosd_data_path;
+extern std::string sosd_lookups_path;
 
 extern std::string model_dbname;
 extern double learn_model_error;

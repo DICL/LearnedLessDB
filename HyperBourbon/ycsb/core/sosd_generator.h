@@ -4,29 +4,18 @@
 #include <mutex>
 #include <random>
 #include <vector>
-#include "koo/koo.h"
 
 
-#if YCSB_SOSD
 namespace ycsbc {
 
 class SOSDGenerator : public Generator<uint64_t> {
  public:
   // Both min and max are inclusive
-  SOSDGenerator(uint32_t which) { 
+  SOSDGenerator() { 
   	counter_.store(0);
 
-		std::string filename = "";
-		if (which == 0) filename = "books_600M";
-		else if (which == 1) filename = "osm_cellids_600M";
-		else if (which == 2) filename = "normal_600M";
-		else if (which == 3) filename = "lognormal_600M";
-		else if (which == 4) filename = "uniform_dense_600M";
-		else if (which == 5) filename = "uniform_sparse_600M";
-		else if (which == 6) filename = "fb_200M";
-		else if (which == 7) filename = "wiki_ts_200M";
-
-  	std::ifstream in("/koo/SOSD/data/"+filename+"_uint64", std::ios::binary);
+		std::string filename = koo::sosd_data_path;
+  	std::ifstream in(filename, std::ios::binary);
   	if (!in.is_open()) {
   		fprintf(stderr, "unable to open %s\n", filename.c_str());
   		exit(1);
@@ -41,9 +30,6 @@ class SOSDGenerator : public Generator<uint64_t> {
 		std::mt19937 generator(seed);
 		std::shuffle(keys.begin(), keys.end(), generator);
 
-		fprintf(stdout, "Read finished\n");
-		fflush(stdout);
-
   	Next(); 
   }
   
@@ -57,5 +43,4 @@ class SOSDGenerator : public Generator<uint64_t> {
 };
 
 } // ycsbc
-#endif
 
