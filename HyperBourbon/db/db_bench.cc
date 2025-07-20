@@ -16,18 +16,11 @@
 #include "util/mutexlock.h"
 #include "util/random.h"
 #include "util/testutil.h"
-#include "util/rate_limiter.h"
 #include <condition_variable>
 #include <thread>
 #include <string_view>
-#include "koo/koo.h"
-
-#if MIXGRAPH
-#include "util/histogram_listdb.h"
-#include <ctime>
-#else
 #include "util/histogram.h"
-#endif
+#include "koo/koo.h"
 
 // Comma-separated list of operations to run in the specified order
 //   Actual benchmarks:
@@ -118,47 +111,6 @@ static bool FLAGS_use_existing_db = false;
 //static const char* FLAGS_db = NULL;
 static const char* FLAGS_db = "/mnt-koo/db/";
 
-#if MIXGRAPH
-constexpr size_t kStringKeyLength = 16;
-static int32_t FLAGS_key_size = 16;
-static int FLAGS_writes = -1;
-static int64_t FLAGS_seed = 0;
-static int32_t FLAGS_duration = 0;
-static int32_t FLAGS_ops_between_duration_checks = 1000;
-
-static double FLAGS_write_rate = 1000000.0;
-static double FLAGS_read_rate = 1000000.0;
-static double FLAGS_sine_c = 0;
-/*static double FLAGS_sine_a = 1;
-static double FLAGS_sine_b = 1;
-static double FLAGS_sine_d = 1;*/
-static double FLAGS_sine_a = 200*1000;		// light
-static double FLAGS_sine_b = 0.03;
-static double FLAGS_sine_d = 900*1000;
-/*static double FLAGS_sine_a = 200*1000;		// heavy
-static double FLAGS_sine_b = 0.03;
-static double FLAGS_sine_d = 600*1000;*/
-
-static double FLAGS_mix_get_ratio = 0.83;
-static double FLAGS_mix_put_ratio = 0.17;
-static double FLAGS_mix_seek_ratio = 0.0;
-//static bool FLAGS_sine_mix_rate = false;		// rocksdb default
-static bool FLAGS_sine_mix_rate = true;
-static double FLAGS_sine_mix_rate_noise = 0.0;		// rocksdb default
-//static double FLAGS_sine_mix_rate_noise = 0.5;		// listdb
-static int64_t FLAGS_mix_max_scan_len = 10000;
-static int64_t FLAGS_mix_max_value_size = 1024;
-//static int64_t FLAGS_mix_ave_kv_size = 512;
-//static uint64_t FLAGS_sine_mix_rate_interval_milliseconds = 10000;		// rocksdb default
-static uint64_t FLAGS_sine_mix_rate_interval_milliseconds = 5000;
-static int64_t FLAGS_report_interval_seconds = 0;
-static const char* FLAGS_report_file = "mixgraph/report.csv";
-static int64_t FLAGS_stats_interval = 0;
-static int64_t FLAGS_stats_interval_seconds = 0;
-
-const uint64_t kMicrosInSecond = 1000 * 1000;
-#endif
-
 namespace leveldb {
 
 namespace {
@@ -168,9 +120,6 @@ class RandomGenerator {
  private:
   std::string data_;
   int pos_;
-#if MIXGRAPH
-	char w_value_buf[4096];
-#endif
 
  public:
   RandomGenerator() : data_(), pos_() {
@@ -186,23 +135,15 @@ class RandomGenerator {
       data_.append(piece);
     }
     pos_ = 0;
-#if MIXGRAPH
-		for (int i=0; i<4096; i++) w_value_buf[i] = (char)i;
-#endif
   }
 
   Slice Generate(size_t len) {
-#if MIXGRAPH
-		std::string r_value;
-		return Slice(w_value_buf, len);
-#else
     if (pos_ + len > data_.size()) {
       pos_ = 0;
       assert(len < data_.size());
     }
     pos_ += len;
     return Slice(data_.data() + pos_ - len, len);
-#endif
   }
 };
 
@@ -225,116 +166,6 @@ static void AppendWithSpace(std::string* str, Slice msg) {
   }
   str->append(msg.data(), msg.size());
 }
-
-#if MIXGRAPH
-static std::string TimeToString(uint64_t secondsSince1970) {
-	const time_t seconds = (time_t)secondsSince1970;
-	struct tm t;
-	int maxsize = 64;
-	std::string dummy;
-	dummy.reserve(maxsize);
-	dummy.resize(maxsize);
-	char* p = &dummy[0];
-	localtime_r(&seconds, &t);
-	snprintf(p, maxsize, "%04d/%02d/%02d-%02d:%02d:%02d ", t.tm_year + 1900,
-				   t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec);
-	return dummy;
-}
-
-// a class that reports stats to CSV file
-class ReporterAgent {
- public:
-  ReporterAgent(Env* env, const std::string& fname,
-                uint64_t report_interval_secs)
-      : env_(env),
-        total_ops_done_(0),
-        last_report_(0),
-        report_interval_secs_(report_interval_secs),
-        stop_(false) {
-    auto s = env_->NewWritableFile(fname, &report_file_);
-    if (s.ok()) {
-      s = report_file_->Append(Header() + "\n");
-    }
-    if (s.ok()) {
-      s = report_file_->Flush();
-    }
-    if (!s.ok()) {
-      fprintf(stderr, "Can't open %s: %s\n", fname.c_str(),
-              s.ToString().c_str());
-      abort();
-    }
-
-    //reporting_thread_ = port::Thread([&]() { SleepAndReport(); });
-    reporting_thread_ = std::thread([&]() { SleepAndReport(); });
-  }
-
-  ~ReporterAgent() {
-    {
-      std::unique_lock<std::mutex> lk(mutex_);
-      stop_ = true;
-      stop_cv_.notify_all();
-    }
-    reporting_thread_.join();
-  }
-
-  // thread safe
-  void ReportFinishedOps(int64_t num_ops) {
-    total_ops_done_.fetch_add(num_ops);
-  }
-
- private:
-  std::string Header() const { return "secs_elapsed,interval_qps"; }
-  void SleepAndReport() {
-    auto time_started = env_->NowMicros();
-    while (true) {
-      {
-        std::unique_lock<std::mutex> lk(mutex_);
-        if (stop_ ||
-            stop_cv_.wait_for(lk, std::chrono::seconds(report_interval_secs_),
-                              [&]() { return stop_; })) {
-          // stopping
-          break;
-        }
-        // else -> timeout, which means time for a report!
-      }
-      auto total_ops_done_snapshot = total_ops_done_.load();
-      // round the seconds elapsed
-      auto secs_elapsed =
-          (env_->NowMicros() - time_started + kMicrosInSecond / 2) /
-          kMicrosInSecond;
-      //std::string report = ToString(secs_elapsed) + "," +
-      //                     ToString(total_ops_done_snapshot - last_report_) +
-      std::string report = std::to_string(secs_elapsed) + "," +
-                           std::to_string(total_ops_done_snapshot - last_report_) +
-                           "\n";
-      auto s = report_file_->Append(report);
-      if (s.ok()) {
-        s = report_file_->Flush();
-      }
-      if (!s.ok()) {
-        fprintf(stderr,
-                "Can't write to report file (%s), stopping the reporting\n",
-                s.ToString().c_str());
-        break;
-      }
-      last_report_ = total_ops_done_snapshot;
-    }
-  }
-
-  Env* env_;
-  //std::unique_ptr<WritableFile> report_file_;
-  WritableFile* report_file_;
-  std::atomic<int64_t> total_ops_done_;
-  int64_t last_report_;
-  const uint64_t report_interval_secs_;
-  //leveldb::port::Thread reporting_thread_;
-  std::thread reporting_thread_;
-  std::mutex mutex_;
-  // will notify on stop
-  std::condition_variable stop_cv_;
-  bool stop_;
-};
-#endif
 
 enum OperationType : unsigned char {
   kRead = 0,
@@ -374,29 +205,13 @@ class Stats {
   int next_report_;
   int64_t bytes_;
   double last_op_finish_;
-#if MIXGRAPH
-	int id_;
-	uint64_t last_report_done_;
-	uint64_t last_report_finish_;
-  std::unordered_map<OperationType, std::shared_ptr<HistogramImpl>,
-										 std::hash<unsigned char>> hist_;
-#else
   Histogram hist_;
-#endif
   std::string message_;
   uint64_t sine_interval_;
-#if MIXGRAPH
-  ReporterAgent* reporter_agent_ = nullptr;		// does not own
-#endif
 
  public:
-#if MIXGRAPH
-  Stats(int id) 
-    : start_(0),
-#else
   Stats() 
     : start_(),
-#endif
       finish_(),
       seconds_(),
       done_(),
@@ -405,36 +220,9 @@ class Stats {
       last_op_finish_(),
       //hist_(),
       message_() {
-#if MIXGRAPH
-    Start(id);
-#else
     Start();
-#endif
   }
 
-#if MIXGRAPH
-  void SetReporterAgent(ReporterAgent* reporter_agent) {
-  	reporter_agent_ = reporter_agent;
-	}
-#endif
-
-#if MIXGRAPH
-  void Start(int id) {
-  	id_ = id;
-		next_report_ = FLAGS_stats_interval ? FLAGS_stats_interval : 100;
-		last_report_done_ = 0;
-    hist_.clear();
-    last_op_finish_ = start_;
-    done_ = 0;
-    bytes_ = 0;
-    seconds_ = 0;
-    start_ = Env::Default()->NowMicros();
-    sine_interval_ = Env::Default()->NowMicros();
-    finish_ = start_;
-		last_report_finish_ = start_;
-    message_.clear();
-  }
-#else
   void Start() {
     next_report_ = 100;
     hist_.Clear();
@@ -447,21 +235,9 @@ class Stats {
     message_.clear();
     sine_interval_ = Env::Default()->NowMicros();
   }
-#endif
 
   void Merge(const Stats& other) {
-#if MIXGRAPH
-    for (auto it = other.hist_.begin(); it != other.hist_.end(); ++it) {
-    	auto this_it = hist_.find(it->first);
-    	if (this_it != hist_.end()) {
-    		this_it->second->Merge(*(other.hist_.at(it->first)));
-			} else {
-				hist_.insert({it->first, it->second});
-			}
-		}
-#else
     hist_.Merge(other.hist_);
-#endif
 
     done_ += other.done_;
     bytes_ += other.bytes_;
@@ -494,64 +270,6 @@ class Stats {
 		return start_;
 	}
 
-#if MIXGRAPH
-	void FinishedOps(DB* db, int64_t num_ops, enum OperationType op_type = kOthers) {
-		if (reporter_agent_) {
-			reporter_agent_->ReportFinishedOps(num_ops);
-		}
-
-    if (FLAGS_histogram) {
-      double now = Env::Default()->NowMicros();
-      double micros = now - last_op_finish_;
-      if (hist_.find(op_type) == hist_.end()) {
-      	auto hist_temp = std::make_shared<HistogramImpl>();
-      	hist_.insert({op_type, std::move(hist_temp)});
-			}
-			hist_[op_type]->Add(micros);
-
-      /*if (micros > 20000) {
-        fprintf(stderr, "long op: %.1f micros%30s\r", micros, "");
-        fflush(stderr);
-      }*/
-      last_op_finish_ = now;
-    }
-
-    done_ += num_ops;
-    if (done_ >= next_report_) {
-    	if (!FLAGS_stats_interval) {
-	      if      (next_report_ < 1000)   next_report_ += 100;
-		    else if (next_report_ < 5000)   next_report_ += 500;
-			  else if (next_report_ < 10000)  next_report_ += 1000;
-				else if (next_report_ < 50000)  next_report_ += 5000;
-	      else if (next_report_ < 100000) next_report_ += 10000;
-		    else if (next_report_ < 500000) next_report_ += 50000;
-			  else                            next_report_ += 100000;
-				fprintf(stderr, "... finished %d ops%30s\r", done_, "");
-	    } else {
-	      uint64_t now = Env::Default()->NowMicros();
-		    int64_t usecs_since_last = now - last_report_finish_;
-			  if (FLAGS_stats_interval_seconds &&
-						usecs_since_last < (FLAGS_stats_interval_seconds * 1000000)) {
-					next_report_ += FLAGS_stats_interval;
-				} else {
-					fprintf(stderr,
-                  "%s ... thread %d: (%lu,%d) ops and "
-                  "(%.1f,%.1f) ops/second in (%.6f,%.6f) seconds\n",
-                  TimeToString(now / 1000000).c_str(), id_,
-                  done_ - last_report_done_, done_,
-                  (done_ - last_report_done_) / (usecs_since_last / 1000000.0),
-                  done_ / ((now - start_) / 1000000.0),
-                  (now - last_report_finish_) / 1000000.0,
-                  (now - start_) / 1000000.0);
-          next_report_ += FLAGS_stats_interval;
-          last_report_finish_ = now;
-          last_report_done_ = done_;
-				}
-			}
-	    fflush(stderr);
-    }
-	}
-#else
   void FinishedSingleOp() {
     if (FLAGS_histogram) {
       double now = Env::Default()->NowMicros();
@@ -577,7 +295,6 @@ class Stats {
       fflush(stderr);
     }
   }
-#endif
 
   void AddBytes(int64_t n) {
     bytes_ += n;
@@ -600,26 +317,6 @@ class Stats {
     }
     AppendWithSpace(&extra, message_);
 
-#if MIXGRAPH
-		double elapsed = (finish_ - start_) * 1e-6;
-		double throughput = (double)done_/elapsed;
-    fprintf(stdout, "%-12s : %11.3f micros/op %ld ops/sec;%s%s\n",
-            name.ToString().c_str(),
-            seconds_ * 1e6 / done_,
-            (long)throughput,
-            (extra.empty() ? "" : " "),
-            extra.c_str());
-    fprintf(stdout, "\tstart_: %f, finish_: %f, done_: %d, elapsed: %f, seconds_: %f\n",
-						start_, finish_, done_, elapsed, seconds_);
-
-		if (FLAGS_histogram) {
-      for (auto it = hist_.begin(); it != hist_.end(); ++it) {
-      	fprintf(stdout, "Microseconds per %s:\n%s\n",
-								OperationTypeString[it->first].c_str(),
-								it->second->ToString().c_str());
-			}
-		}
-#else
     fprintf(stdout, "%-12s : %11.3f micros/op;%s%s\n",
             name.ToString().c_str(),
             seconds_ * 1e6 / done_,
@@ -628,7 +325,6 @@ class Stats {
     if (FLAGS_histogram) {
       fprintf(stdout, "Microseconds per op:\n%s\n", hist_.ToString().c_str());
     }
-#endif
     fflush(stdout);
   }
 };
@@ -638,10 +334,6 @@ struct SharedState {
   port::Mutex mu;
   port::CondVar cv;
   int total;
-#if MIXGRAPH
-  std::shared_ptr<RateLimiter> write_rate_limiter;
-  std::shared_ptr<RateLimiter> read_rate_limiter;
-#endif
 
   // Each thread goes through the following states:
   //    (1) initializing
@@ -666,69 +358,20 @@ struct SharedState {
 // Per-thread state for concurrent executions of the same benchmark.
 struct ThreadState {
   int tid;             // 0..n-1 when running in n threads
-#if MIXGRAPH
-  Random64 rand;
-#else
   Random rand;         // Has different seeds for different threads
-#endif
   Stats stats;
   SharedState* shared;
 
   ThreadState(int index)
       : tid(index),
-#if MIXGRAPH
-				rand((FLAGS_seed ? FLAGS_seed : 1000) + index),
-        stats(index),
-#else
         rand(1000 + index),
         stats(),
-#endif
         shared() {
   }
  private:
   ThreadState(const ThreadState&);
   ThreadState& operator = (const ThreadState&);
 };
-
-#if MIXGRAPH
-class Duration {
- public:
-  Duration(uint64_t max_seconds, int64_t max_ops, int64_t ops_per_stage = 0) {
-    max_seconds_ = max_seconds;
-    max_ops_= max_ops;
-    ops_per_stage_ = (ops_per_stage > 0) ? ops_per_stage : max_ops;
-    ops_ = 0;
-    start_at_ = Env::Default()->NowMicros();
-  }
-
-  int64_t GetStage() { return std::min(ops_, max_ops_ - 1) / ops_per_stage_; }
-
-  bool Done(int64_t increment) {
-    if (increment <= 0) increment = 1;    // avoid Done(0) and infinite loops
-    ops_ += increment;
-
-    if (max_seconds_) {
-      // Recheck every appx 1000 ops (exact iff increment is factor of 1000)
-      auto granularity = FLAGS_ops_between_duration_checks;
-      if ((ops_ / granularity) != ((ops_ - increment) / granularity)) {
-        uint64_t now = Env::Default()->NowMicros();
-        return ((now - start_at_) / 1000000) >= max_seconds_;
-      } else {
-        return false;
-      }
-    } else {
-      return ops_ > max_ops_;
-    }
-  }
-
- private:
-  uint64_t max_seconds_;
-  int64_t max_ops_;
-  int64_t ops_per_stage_;
-  int64_t ops_;
-  uint64_t start_at_;
-};
-#endif
 
 }  // namespace
 
@@ -746,10 +389,6 @@ class Benchmark {
   int reads_;
   int writes_;
   int heap_counter_;
-#if MIXGRAPH
-	int key_size_;
-	double read_random_exp_range_;
-#endif
 
   void PrintHeader() {
     const int kKeySize = 16;
@@ -833,24 +472,11 @@ class Benchmark {
                    : NULL),
     db_(NULL),
     num_(FLAGS_num),
-#if MIXGRAPH
-		key_size_(FLAGS_key_size),
-		read_random_exp_range_(0.0),
-#endif
     value_size_(FLAGS_value_size),
     entries_per_batch_(1),
     write_options_(),
     reads_(FLAGS_reads < 0 ? FLAGS_num : FLAGS_reads),
-#if MIXGRAPH
-    writes_(FLAGS_writes < 0 ? FLAGS_num : FLAGS_writes),
-#endif
     heap_counter_(0) {
-#if MIXGRAPH
-    if (key_size_ > (int) kStringKeyLength) {
-    	fprintf(stderr, "Error!: kStringKeyLength < --key_size\n.");
-    	exit(1);
-		}
-#endif
     std::vector<std::string> files;
     Env::Default()->GetChildren(FLAGS_db, &files);
     for (size_t i = 0; i < files.size(); i++) {
@@ -868,57 +494,6 @@ class Benchmark {
     delete cache_;
     delete filter_policy_;
   }
-
-#if MIXGRAPH
-  Slice AllocateKey(std::unique_ptr<const char[]>* key_guard) {
-    char* data = new char[key_size_];
-    const char* const_data = data;
-    key_guard->reset(const_data);
-    return Slice(key_guard->get(), key_size_);
-  }
-
-  void GenerateKeyFromInt(uint64_t v, int64_t num_keys, Slice* key) {
-    /*if (!keys_.empty()) {
-      assert(FLAGS_use_existing_keys);
-      assert(keys_.size() == static_cast<size_t>(num_keys));
-      assert(v < static_cast<uint64_t>(num_keys));
-      *key = keys_[v];
-      return;
-    }*/
-    char* start = const_cast<char*>(key->data());
-    char* pos = start;
-    /*if (keys_per_prefix_ > 0) {
-      int64_t num_prefix = num_keys / keys_per_prefix_;
-      int64_t prefix = v % num_prefix;
-      int bytes_to_fill = std::min(prefix_size_, 8);
-      if (port::kLittleEndian) {
-        for (int i = 0; i < bytes_to_fill; ++i) {
-          pos[i] = (prefix >> ((bytes_to_fill - i - 1) << 3)) & 0xFF;
-        }
-      } else {
-        memcpy(pos, static_cast<void*>(&prefix), bytes_to_fill);
-      }
-      if (prefix_size_ > 8) {
-        // fill the rest with 0s
-        memset(pos + 8, '0', prefix_size_ - 8);
-      }
-      pos += prefix_size_;
-    }*/
-
-    int bytes_to_fill = std::min(key_size_ - static_cast<int>(pos - start), 8);
-    if (port::kLittleEndian) {
-      for (int i = 0; i < bytes_to_fill; ++i) {
-        pos[i] = (v >> ((bytes_to_fill - i - 1) << 3)) & 0xFF;
-      }
-    } else {
-      memcpy(pos, static_cast<void*>(&v), bytes_to_fill);
-    }
-    pos += bytes_to_fill;
-    if (key_size_ > pos - start) {
-      memset(pos, '0', key_size_ - (pos - start));
-    }
-  }
-#endif
 
   void Run() {
     PrintHeader();
@@ -939,9 +514,6 @@ class Benchmark {
       // Reset parameters that may be overriddden bwlow
       num_ = FLAGS_num;
       reads_ = (FLAGS_reads < 0 ? FLAGS_num : FLAGS_reads);
-#if MIXGRAPH
-      writes_ = (FLAGS_writes < 0 ? FLAGS_num : FLAGS_writes);
-#endif
       value_size_ = FLAGS_value_size;
       entries_per_batch_ = 1;
       write_options_ = WriteOptions();
@@ -1011,10 +583,6 @@ class Benchmark {
         PrintStats("leveldb.stats");
       } else if (name == Slice("sstables")) {
         PrintStats("leveldb.sstables");
-#if MIXGRAPH
-      } else if (name == Slice("mixgraph")) {
-      	method = &Benchmark::MixGraph;
-#endif
       } else {
         if (name != Slice()) {  // No error message for empty name
           fprintf(stderr, "unknown benchmark '%s'\n", name.ToString().c_str());
@@ -1037,10 +605,6 @@ class Benchmark {
       if (method != NULL) {
         RunBenchmark(num_threads, name, method);
       }
-#if MIXGRAPH
-			koo::Report();
-			koo::Reset();
-#endif
     }
   }
 
@@ -1067,11 +631,7 @@ class Benchmark {
       }
     }
 
-#if MIXGRAPH
-    thread->stats.Start(thread->tid);
-#else
     thread->stats.Start();
-#endif
     (arg->bm->*(arg->method))(thread);
     thread->stats.Stop();
 
@@ -1092,23 +652,12 @@ class Benchmark {
     shared.num_done = 0;
     shared.start = false;
 
-#if MIXGRAPH
-    std::unique_ptr<ReporterAgent> reporter_agent;
-    if (FLAGS_report_interval_seconds > 0) {
-    	reporter_agent.reset(new ReporterAgent(Env::Default(), FLAGS_report_file,
-																						 FLAGS_report_interval_seconds));
-		}
-#endif
-
     ThreadArg* arg = new ThreadArg[n];
     for (int i = 0; i < n; i++) {
       arg[i].bm = this;
       arg[i].method = method;
       arg[i].shared = &shared;
       arg[i].thread = new ThreadState(i);
-#if MIXGRAPH
-      arg[i].thread->stats.SetReporterAgent(reporter_agent.get());
-#endif
       arg[i].thread->shared = &shared;
       Env::Default()->StartThread(ThreadBody, &arg[i]);
     }
@@ -1145,11 +694,7 @@ class Benchmark {
     uint32_t crc = 0;
     while (bytes < 500 * 1048576) {
       crc = crc32c::Value(data.data(), size);
-#if MIXGRAPH
-      thread->stats.FinishedOps(nullptr, 1, kCrc);
-#else
       thread->stats.FinishedSingleOp();
-#endif
       bytes += size;
     }
     // Print so result is not dead
@@ -1170,11 +715,7 @@ class Benchmark {
         ptr = ap.Acquire_Load();
       }
       count++;
-#if MIXGRAPH
-      thread->stats.FinishedOps(nullptr, 1, kOthers);
-#else
       thread->stats.FinishedSingleOp();
-#endif
     }
     if (ptr == NULL) exit(1); // Disable unused variable warning.
   }
@@ -1190,11 +731,7 @@ class Benchmark {
       ok = port::Snappy_Compress(input.data(), input.size(), &compressed);
       produced += compressed.size();
       bytes += input.size();
-#if MIXGRAPH
-      thread->stats.FinishedOps(nullptr, 1, kCompress);
-#else
       thread->stats.FinishedSingleOp();
-#endif
     }
 
     if (!ok) {
@@ -1219,11 +756,7 @@ class Benchmark {
       ok =  port::Snappy_Uncompress(compressed.data(), compressed.size(),
                                     uncompressed);
       bytes += input.size();
-#if MIXGRAPH
-      thread->stats.FinishedOps(nullptr, 1, kUncompress);
-#else
       thread->stats.FinishedSingleOp();
-#endif
     }
     delete[] uncompressed;
 
@@ -1257,133 +790,6 @@ class Benchmark {
     DoWrite(thread, false);
   }
 
-#if MIXGRAPH
-//#if VLOG && MIXGRAPH
-  double SineRate(double x) {
-    return FLAGS_sine_a*sin((FLAGS_sine_b*x) + FLAGS_sine_c) + FLAGS_sine_d;
-  }
-
-  int64_t GetRandomKey(Random64* rand) {
-    uint64_t rand_int = rand->Next();
-    int64_t key_rand;
-    if (read_random_exp_range_ == 0) {
-      key_rand = (rand_int % (FLAGS_num - 1)) + 1;
-    } else {
-      const uint64_t kBigInt = static_cast<uint64_t>(1U) << 62;
-      long double order = -static_cast<long double>(rand_int % kBigInt) /
-                          static_cast<long double>(kBigInt) *
-                          read_random_exp_range_;
-      long double exp_ran = std::exp(order);
-      uint64_t rand_num =
-          static_cast<int64_t>(exp_ran * static_cast<long double>(FLAGS_num));
-      // Map to a different number to avoid locality.
-      const uint64_t kBigPrime = 0x5bd1e995;
-      // Overflow is like %(2^64). Will have little impact of results.
-      key_rand = static_cast<int64_t>((rand_num * kBigPrime) % FLAGS_num);
-    }
-    return key_rand;
-  }
-	enum WriteMode {
-		RANDOM, SEQUENTIAL, UNIQUE_RANDOM
-	};
-
-  class KeyGenerator {
-   public:
-    KeyGenerator(Random64* rand, WriteMode mode, uint64_t num,
-                 uint64_t /*num_per_set*/ = 64 * 1024)
-        : rand_(rand), mode_(mode), num_(num), next_(0) {
-      if (mode_ == UNIQUE_RANDOM) {
-        // NOTE: if memory consumption of this approach becomes a concern,
-        // we can either break it into pieces and only random shuffle a section
-        // each time. Alternatively, use a bit map implementation
-        // (https://reviews.facebook.net/differential/diff/54627/)
-        values_.resize(num_);
-        for (uint64_t i = 0; i < num_; ++i) {
-          values_[i] = i;
-        }
-        RandomShuffle(values_.begin(), values_.end(),
-                      static_cast<uint32_t>(FLAGS_seed));
-      }
-    }
-
-    uint64_t Next() {
-      switch (mode_) {
-        case SEQUENTIAL:
-          return next_++;
-        case RANDOM:
-          return (rand_->Next() % (num_ - 1)) + 1;
-        case UNIQUE_RANDOM:
-          assert(next_ < num_);
-          return values_[next_++];
-      }
-      assert(false);
-      return std::numeric_limits<uint64_t>::max();
-    }
-
-    // Only available for UNIQUE_RANDOM mode.
-    uint64_t Fetch(uint64_t index) {
-      assert(mode_ == UNIQUE_RANDOM);
-      assert(index < values_.size());
-      return values_[index];
-    }
-
-   private:
-    Random64* rand_;
-    WriteMode mode_;
-    const uint64_t num_;
-    uint64_t next_;
-    std::vector<uint64_t> values_;
-  };
-
-  void DoWrite(ThreadState* thread, bool seq) {
-    if (num_ != FLAGS_num) {
-      char msg[100];
-      snprintf(msg, sizeof(msg), "(%d ops)", num_);
-      thread->stats.AddMessage(msg);
-    }
-
-		/*WriteMode write_mode = seq ? SEQUENTIAL : RANDOM;
-  	const int64_t num_ops = writes_ == 0 ? num_ : writes_;
-    //Duration duration(test_duration, max_ops, ops_per_stage);
-		std::unique_ptr<KeyGenerator> key_gen;
-		key_gen.reset(new KeyGenerator(&(thread->rand), write_mode, num_, num_ops));
-		std::unique_ptr<const char[]> key_guard;
-		Slice key = AllocateKey(&key_guard);*/
-
-    RandomGenerator gen;
-    Status s;
-    int64_t bytes = 0;
-    /*for (int i = 0; i < writes_; i++) {
-    	int64_t rand_num = 0;
-    	rand_num = key_gen->Next();
-    	GenerateKeyFromInt(rand_num, FLAGS_num, &key);
-    	//fprintf(stdout, "rand_num: %ld, key: %s\n\n", rand_num, key.data());
-    	s = db_->Put(write_options_, key, gen.Generate(value_size_));
-			if (!s.ok()) {
-				fprintf(stderr, "put error: %s\n", s.ToString().c_str());
-	      exit(1);
-	    }
-      thread->stats.FinishedOps(nullptr, 1, kWrite);
-    	bytes += value_size_ + key_size_;
-		}*/
-    for (int i = 0; i < writes_; i += entries_per_batch_) {
-      for (int j = 0; j < entries_per_batch_; j++) {
-        const int k = seq ? i+j : (thread->rand.Next() % FLAGS_num);
-        char key[100];
-        snprintf(key, sizeof(key), "%016d", k);
-				//if (strlen(key) != 16) fprintf(stdout, "strlen(key) != 16\t%s %lu\n", key, strlen(key));	// KOOO
-				s = db_->Put(write_options_, key, gen.Generate(value_size_));
-				if (!s.ok()) {
-					fprintf(stderr, "put error: %s\n", s.ToString().c_str());
-	        exit(1);
-		    }
-        bytes += value_size_ + strlen(key);
-      }
-      thread->stats.FinishedOps(nullptr, entries_per_batch_, kWrite);
-    }
-    thread->stats.AddBytes(bytes);
-  }
-#else
   void DoWrite(ThreadState* thread, bool seq) {
     if (num_ != FLAGS_num) {
       char msg[100];
@@ -1401,9 +807,7 @@ class Benchmark {
         const int k = seq ? i+j : (thread->rand.Next() % FLAGS_num);
         char key[100];
         snprintf(key, sizeof(key), "%016d", k);
-#if VLOG
         batch.Put(key, gen.Generate(value_size_));
-#endif
         bytes += value_size_ + strlen(key);
         thread->stats.FinishedSingleOp();
       }
@@ -1415,231 +819,6 @@ class Benchmark {
     }
     thread->stats.AddBytes(bytes);
   }
-#endif
-
-#if MIXGRAPH
-  // The inverse function of power distribution (y=ax^b)
-  int64_t PowerCdfInversion(double u, double a, double b) {
-    double ret;
-    ret = std::pow((u / a), (1 / b));
-    return static_cast<int64_t>(ceil(ret));
-  }
-
-  // Add the noice to the QPS
-  double AddNoise(double origin, double noise_ratio) {
-    if (noise_ratio < 0.0 || noise_ratio > 1.0) {
-      return origin;
-    }
-    int band_int = static_cast<int>(FLAGS_sine_a);
-    double delta = (rand() % band_int - band_int / 2) * noise_ratio;
-    if (origin + delta < 0) {
-      return origin;
-    } else {
-      return (origin + delta);
-    }
-  }
-
-  // Decide the ratio of different query types
-  // 0 Get, 1 Put, 2 Seek, 3 SeekForPrev, 4 Delete, 5 SingleDelete, 6 merge
-  class QueryDecider {
-   public:
-    std::vector<int> type_;
-    std::vector<double> ratio_;
-    int range_;
-
-    QueryDecider() {}
-    ~QueryDecider() {}
-
-    Status Initiate(std::vector<double> ratio_input) {
-      int range_max = 1000;
-      double sum = 0.0;
-      for (auto& ratio : ratio_input) {
-        sum += ratio;
-      }
-      range_ = 0;
-      for (auto& ratio : ratio_input) {
-        range_ += static_cast<int>(ceil(range_max * (ratio / sum)));
-        type_.push_back(range_);
-        ratio_.push_back(ratio / sum);
-      }
-      return Status::OK();
-    }
-
-    int GetType(int64_t rand_num) {
-      if (rand_num < 0) {
-        rand_num = rand_num * (-1);
-      }
-      assert(range_ != 0);
-      int pos = static_cast<int>(rand_num % range_);
-      for (int i = 0; i < static_cast<int>(type_.size()); i++) {
-        if (pos < type_[i]) {
-          return i;
-        }
-      }
-      return 0;
-    }
-  };
-
-  void MixGraph(ThreadState* thread) {
-  	int64_t read = 0;
-  	int64_t gets = 0;
-  	int64_t puts = 0;
-  	int64_t found = 0;
-  	int64_t seek = 0;
-  	int64_t seek_found = 0;
-  	int64_t bytes = 0;
-  	const int64_t default_value_max = 1 * 1024 * 1024;
-  	int64_t value_max = default_value_max;
-  	int64_t scan_len_max = FLAGS_mix_max_scan_len;
-  	//double write_rate = 1000000.0;	//default
-  	//double read_rate = 1000000.0;		//default
-  	double write_rate = FLAGS_write_rate;		// sine_a, sine_d 단위에 맞추기
-  	double read_rate = FLAGS_read_rate;
-  	std::vector<double> ratio{FLAGS_mix_get_ratio, FLAGS_mix_put_ratio,
-															FLAGS_mix_seek_ratio};
-		//char value_buffer[default_value_max];
-		QueryDecider query;
-		RandomGenerator gen;
-		Status s;
-		if (value_max > FLAGS_mix_max_value_size) {
-			value_max = FLAGS_mix_max_value_size;
-		}
-
-    ReadOptions options;
-    std::unique_ptr<const char[]> key_guard;
-    Slice key = AllocateKey(&key_guard);
-    std::string value;
-    value.reserve(value_max);
-    query.Initiate(ratio);
-
-    // the limit of qps initiation
-    //if (FLAGS_sine_a != 0 || FLAGS_sine_d != 0) {
-      //thread->shared->read_rate_limiter.reset(NewGenericRateLimiter(
-      //    static_cast<int64_t>(read_rate), 100000 /* refill_period_us */, 10 /* fairness */,
-      //    RateLimiter::Mode::kReadsOnly));
-    if (FLAGS_sine_mix_rate) {
-      thread->shared->read_rate_limiter.reset(
-          NewGenericRateLimiter(static_cast<int64_t>(read_rate)));
-      thread->shared->write_rate_limiter.reset(
-          NewGenericRateLimiter(static_cast<int64_t>(write_rate)));
-		}
-
-		//Duration duration(FLAGS_duration, reads_);
-		//while (!duration.Done(1)) {
-    for (int i = 0; i < reads_; i++) {
-    	/*int64_t ini_rand = GetRandomKey(&thread->rand);
-    	int64_t rand_v = ini_rand % FLAGS_num;
-    	double u = static_cast<double>(rand_v) / FLAGS_num;
-    	int64_t key_seed = PowerCdfInversion(u, 0.0, 0.0);
-    	Random64 rand(key_seed);
-    	int64_t key_rand = static_cast<int64_t>(rand.Next()) % FLAGS_num;
-    	GenerateKeyFromInt(key_rand, FLAGS_num, &key);*/
-			int64_t rand_v = thread->rand.Next() % FLAGS_num;
-			const int k = thread->rand.Next() % FLAGS_num;
-			char key[100];
-			snprintf(key, sizeof(key), "%016d", k);
-			int query_type = query.GetType(rand_v);
-
-			// change the qps
-			uint64_t now = Env::Default()->NowMicros();
-			uint64_t usecs_since_last;
-			if (now > thread->stats.GetSineInterval()) {
-				usecs_since_last = now - thread->stats.GetSineInterval();
-			} else {
-				usecs_since_last = 0;
-			}
-			if (FLAGS_sine_mix_rate && usecs_since_last >
-					(FLAGS_sine_mix_rate_interval_milliseconds * uint64_t{1000})) {
-        double usecs_since_start =
-            static_cast<double>(now - thread->stats.GetStart());
-        thread->stats.ResetSineInterval();
-        double mix_rate_with_noise = AddNoise(
-            SineRate(usecs_since_start / 1000000.0), FLAGS_sine_mix_rate_noise);
-        read_rate = mix_rate_with_noise * (query.ratio_[0] + query.ratio_[2]);
-        write_rate =
-            mix_rate_with_noise * query.ratio_[1];
-            //mix_rate_with_noise * query.ratio_[1] * FLAGS_mix_ave_kv_size;
-
-        //if (read_rate > 0) {
-        if (read_rate >= 1) {
-        	thread->shared->read_rate_limiter->SetBytesPerSecond(
-							static_cast<int64_t>(read_rate));
-				}
-        //if (write_rate > 0) {
-        if (write_rate >= 1) {
-        	thread->shared->write_rate_limiter->SetBytesPerSecond(
-							static_cast<int64_t>(write_rate));
-				}
-        /*thread->shared->write_rate_limiter.reset(
-            NewGenericRateLimiter(static_cast<int64_t>(write_rate)));
-        thread->shared->read_rate_limiter.reset(NewGenericRateLimiter(
-            static_cast<int64_t>(read_rate),
-            FLAGS_sine_mix_rate_interval_milliseconds * uint64_t{1000}, 10,
-            RateLimiter::Mode::kReadsOnly));*/
-			}
-
-			// Start the query
-			if (query_type == 0) {
-				gets++;
-				read++;
-				std::string value;
-				s = db_->Get(options, key, &value);
-				if (s.ok()) {		// Get
-					found++;
-					bytes += key_size_ + value_size_;
-				} else if (!s.IsNotFound()) {
-					fprintf(stderr, "Get returned an error: %s\n", s.ToString().c_str());
-				} /*else {
-					fprintf(stderr, "Get returned an error: %s\n", s.ToString().c_str());
-				}*/
-
-				if (thread->shared->read_rate_limiter && read % 100 == 0) {
-					thread->shared->read_rate_limiter->Request(100, Env::IO_HIGH);
-				}
-        /*if (thread->shared->read_rate_limiter.get() != nullptr &&
-            read % 256 == 255) {
-          thread->shared->read_rate_limiter->Request(
-              256, Env::IO_HIGH,
-              RateLimiter::OpType::kRead);
-        }*/
-				thread->stats.FinishedOps(nullptr, 1, kRead);
-			} else if (query_type == 1) {		// Put
-				puts++;
-				s = db_->Put(write_options_, key, gen.Generate(value_size_));
-				if (!s.ok()) {
-					fprintf(stderr, "put error: %s\n", s.ToString().c_str());
-					exit(1);
-				}
-
-				if (thread->shared->write_rate_limiter && puts % 100 == 0) {
-					thread->shared->write_rate_limiter->Request(100, Env::IO_HIGH);
-				}
-        /*if (thread->shared->write_rate_limiter) {
-          thread->shared->write_rate_limiter->Request(
-              strlen(key) + value_size_, Env::IO_HIGH,
-              RateLimiter::OpType::kWrite);
-        }*/
-				thread->stats.FinishedOps(nullptr, 1, kWrite);
-			} else if (query_type == 2) {		// Seek
-				Iterator* iter = db_->NewIterator(options);
-				iter->Seek(key);
-				seek++;
-				read++;
-				if (iter->Valid() && iter->key() == key) seek_found++;
-				delete iter;
-				thread->stats.FinishedOps(nullptr, 1, kSeek);
-			}
-		}
-
-		char msg[256];
-		snprintf(msg, sizeof(msg), 
-						 "( Gets: %ld, Puts: %ld, Seek: %ld of %ld in %ld found\n", 
-						 gets, puts, seek, found, read);
-		thread->stats.AddBytes(bytes);
-		thread->stats.AddMessage(msg);
-
-	}
-#endif
 
   void ReadSequential(ThreadState* thread) {
     Iterator* iter = db_->NewIterator(ReadOptions());
@@ -1647,11 +826,7 @@ class Benchmark {
     int64_t bytes = 0;
     for (iter->SeekToFirst(); i < reads_ && iter->Valid(); iter->Next()) {
       bytes += iter->key().size() + iter->value().size();
-#if MIXGRAPH
-      thread->stats.FinishedOps(nullptr, 1, kRead);
-#else
       thread->stats.FinishedSingleOp();
-#endif
       ++i;
     }
     delete iter;
@@ -1664,11 +839,7 @@ class Benchmark {
     int64_t bytes = 0;
     for (iter->SeekToLast(); i < reads_ && iter->Valid(); iter->Prev()) {
       bytes += iter->key().size() + iter->value().size();
-#if MIXGRAPH
-      thread->stats.FinishedOps(nullptr, 1, kRead);
-#else
       thread->stats.FinishedSingleOp();
-#endif
       ++i;
     }
     delete iter;
@@ -1686,11 +857,7 @@ class Benchmark {
       if (db_->Get(options, key, &value).ok()) {
         found++;
       }
-#if MIXGRAPH
-      thread->stats.FinishedOps(nullptr, 1, kRead);
-#else
       thread->stats.FinishedSingleOp();
-#endif
     }
     char msg[100];
     snprintf(msg, sizeof(msg), "(%d of %d found)", found, num_);
@@ -1705,11 +872,7 @@ class Benchmark {
       const int k = thread->rand.Next() % FLAGS_num;
       snprintf(key, sizeof(key), "%016d.", k);
       db_->Get(options, key, &value);
-#if MIXGRAPH
-      thread->stats.FinishedOps(nullptr, 1, kRead);
-#else
       thread->stats.FinishedSingleOp();
-#endif
     }
   }
 
@@ -1722,11 +885,7 @@ class Benchmark {
       const int k = thread->rand.Next() % range;
       snprintf(key, sizeof(key), "%016d", k);
       db_->Get(options, key, &value);
-#if MIXGRAPH
-      thread->stats.FinishedOps(nullptr, 1, kRead);
-#else
       thread->stats.FinishedSingleOp();
-#endif
     }
   }
 
@@ -1742,11 +901,7 @@ class Benchmark {
       iter->Seek(key);
       if (iter->Valid() && iter->key() == key) found++;
       delete iter;
-#if MIXGRAPH
-      thread->stats.FinishedOps(nullptr, 1, kSeek);
-#else
       thread->stats.FinishedSingleOp();
-#endif
     }
     char msg[100];
     snprintf(msg, sizeof(msg), "(%d of %d found)", found, num_);
@@ -1764,13 +919,9 @@ class Benchmark {
         char key[100];
         snprintf(key, sizeof(key), "%016d", k);
         batch.Delete(key);
-#if MIXGRAPH
-				thread->stats.FinishedOps(nullptr, 1, kDelete);
-#else
         thread->stats.FinishedSingleOp();
-#endif
       }
-      s = db_->Write(write_options_, &batch);		// TODO db_->Put으로 고쳐야함
+      s = db_->Write(write_options_, &batch);
       if (!s.ok()) {
         fprintf(stderr, "del error: %s\n", s.ToString().c_str());
         exit(1);
@@ -1812,11 +963,7 @@ class Benchmark {
       }
 
       // Do not count any of the preceding work/delay in stats.
-#if MIXGRAPH
-      thread->stats.Start(thread->tid);
-#else
       thread->stats.Start();
-#endif
     }
   }
 
@@ -1895,54 +1042,11 @@ int main(int argc, char** argv) {
       FLAGS_open_files = n;
     } else if (strncmp(argv[i], "--db=", 5) == 0) {
       FLAGS_db = argv[i] + 5;
-#if MIXGRAPH
-    } else if (sscanf(argv[i], "--key_size=%d%c", &n, &junk) == 1) {
-      FLAGS_key_size = n;
-    } else if (sscanf(argv[i], "--writes=%d%c", &n, &junk) == 1) {
-      FLAGS_writes = n;
-		} else if (sscanf(argv[i], "-sine_a=%lf%c", &d, &junk) == 1) {
-			FLAGS_sine_a = d;
-		} else if (sscanf(argv[i], "-sine_b=%lf%c", &d, &junk) == 1) {
-			FLAGS_sine_b = d;
-		} else if (sscanf(argv[i], "-sine_c=%lf%c", &d, &junk) == 1) {
-			FLAGS_sine_c = d;
-		} else if (sscanf(argv[i], "-sine_d=%lf%c", &d, &junk) == 1) {
-			FLAGS_sine_d = d;
-		} else if (sscanf(argv[i], "-write_rate=%lf%c", &d, &junk) == 1) {
-			FLAGS_write_rate = d;
-		} else if (sscanf(argv[i], "-read_rate=%lf%c", &d, &junk) == 1) {
-			FLAGS_read_rate = d;
-		} else if (sscanf(argv[i], "-mix_get_ratio=%lf%c", &d, &junk) == 1) {
-			FLAGS_mix_get_ratio = d;
-		} else if (sscanf(argv[i], "-mix_put_ratio=%lf%c", &d, &junk) == 1) {
-			FLAGS_mix_put_ratio = d;
-		} else if (sscanf(argv[i], "-mix_seek_ratio=%lf%c", &d, &junk) == 1) {
-			FLAGS_mix_seek_ratio = d;
-		} else if (sscanf(argv[i], "-sine_mix_rate=%d%c", &n, &junk) == 1) {
-			if (n) FLAGS_sine_mix_rate = true;
-			else FLAGS_sine_mix_rate = false;
-		} else if (sscanf(argv[i], "-sine_mix_rate_noise=%lf%c", &d, &junk) == 1) {
-			FLAGS_sine_mix_rate_noise = d;
-		} else if (sscanf(argv[i], "-sine_mix_rate_interval_milliseconds=%lu%c", &u64, &junk) == 1) {
-			FLAGS_sine_mix_rate_interval_milliseconds = u64;
-		} else if (sscanf(argv[i], "-report_interval_seconds=%ld%c", &i64, &junk) == 1) {
-			FLAGS_report_interval_seconds = i64;
-    } else if (strncmp(argv[i], "-report_file=", 13) == 0) {
-      FLAGS_report_file = argv[i] + 13;
-		} else if (sscanf(argv[i], "-stats_interval=%ld%c", &i64, &junk) == 1) {
-			FLAGS_stats_interval = i64;
-		} else if (sscanf(argv[i], "-stats_interval_seconds=%ld%c", &i64, &junk) == 1) {
-			FLAGS_stats_interval_seconds = i64;
-#endif
     } else {
       fprintf(stderr, "Invalid flag '%s'\n", argv[i]);
       exit(1);
     }
   }
-#if MIXGRAPH
-	if (FLAGS_stats_interval_seconds > 0)
-		FLAGS_stats_interval = 1000;
-#endif
 
   // Choose a location for the test database if none given with --db=<path>
   if (FLAGS_db == NULL) {
@@ -1952,16 +1056,6 @@ int main(int argc, char** argv) {
   }
 
   leveldb::Benchmark benchmark;
-#if MIXGRAPH
-	time_t timer = time(NULL);
-	struct tm* t = localtime(&timer);
-	fprintf(stdout, "Benchmark Start %d:%d:%d\n", t->tm_hour, t->tm_min, t->tm_sec);
-#endif
   benchmark.Run();
-#if MIXGRAPH
-	timer = time(NULL);
-	t = localtime(&timer);
-	fprintf(stdout, "Benchmark End %d:%d:%d\n", t->tm_hour, t->tm_min, t->tm_sec);
-#endif
   return 0;
 }

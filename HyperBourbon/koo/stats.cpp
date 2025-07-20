@@ -9,7 +9,6 @@
 #include "plr.h"
 #include "util.h"
 #include <x86intrin.h>
-#include "koo/koo.h"
 
 using std::stoull;
 
@@ -17,13 +16,9 @@ namespace koo {
 
     Stats* Stats::singleton = nullptr;
 
-#if THREADSAFE
     Stats::Stats() : initial_time(__rdtsc()) {
     	  for(int i=0; i<20; i++)
     	  	timers.push_back(new Timer());
-#else
-    Stats::Stats() : timers(20, Timer{}), initial_time(__rdtsc()) {
-#endif
         /*levelled_counters[0].name = "LevelModel";
         levelled_counters[1].name = "FileModel";
         levelled_counters[2].name = "Baseline";
@@ -46,7 +41,6 @@ namespace koo {
         return singleton;
     }
 
-#if THREADSAFE
     uint64_t Stats::StartTimer(uint32_t id) {
         Timer* timer = timers[id];
         return timer->Start();
@@ -72,34 +66,6 @@ namespace koo {
             printf("Timer %u: %lu\n", i, timers[i]->Time());
         }
     }
-#else
-    void Stats::StartTimer(uint32_t id) {
-        Timer& timer = timers[id];
-        timer.Start();
-    }
-
-    std::pair<uint64_t, uint64_t> Stats::PauseTimer(uint32_t id, bool record) {
-        Timer& timer = timers[id];
-        return timer.Pause(record);
-    }
-
-    void Stats::ResetTimer(uint32_t id) {
-        Timer& timer = timers[id];
-        timer.Reset();
-    }
-
-    uint64_t Stats::ReportTime(uint32_t id) {
-        Timer& timer = timers[id];
-        return timer.Time();
-    }
-
-    void Stats::ReportTime() {
-        for (int i = 0; i < timers.size(); ++i) {
-            printf("Timer %u: %lu\n", i, timers[i].Time());
-        }
-    }
-#endif
-
 
 
 
@@ -115,20 +81,12 @@ namespace koo {
 
 
     void Stats::ResetAll() {
-#if THREADSAFE
         for (Timer* t: timers) t->Reset();
-#else
-        for (Timer& t: timers) t.Reset();
-#endif
         initial_time = __rdtsc();
     }
 
     Stats::~Stats() {
-#if THREADSAFE
-				for (Timer* t : timers) delete t;			//TODO
-#else
-        ReportTime();
-#endif
+				for (Timer* t : timers) delete t;
     }
 
 }

@@ -41,37 +41,12 @@
 #define TIME_R_LEVEL 0
 #define MODELCOMP_TEST 0
 #define MODEL_BREAKDOWN 0
-#define MODEL_ACCURACY 0			// WriteModel시 TestModelAccuracy()
-#define LOOKUP_ACCURACY 0
 
 namespace koo {
 
 extern std::string model_dbname;
 extern double learn_model_error;
 extern double merge_model_error;
-
-#if LOOKUP_ACCURACY
-extern std::atomic<uint64_t> lm_error[7];
-extern std::atomic<uint64_t> lm_num_error[7];
-extern std::atomic<uint64_t> mm_error[7];
-extern std::atomic<uint64_t> mm_num_error[7];
-extern std::atomic<uint64_t> rm_error[7];
-extern std::atomic<uint64_t> rm_num_error[7];
-#endif
-
-#if MODEL_ACCURACY
-extern std::atomic<uint64_t> lm_max_error[7];
-extern std::atomic<uint64_t> lm_avg_error[7];
-extern std::atomic<uint64_t> lm_num_error2[7];
-extern std::atomic<uint64_t> mm_max_error[7];
-extern std::atomic<uint64_t> mm_avg_error[7];
-extern std::atomic<uint64_t> mm_num_error2[7];
-
-extern std::atomic<uint64_t> mm_max_error_over[7];
-extern std::atomic<uint64_t> mm_avg_error_over[7];
-extern std::atomic<uint64_t> mm_num_error_over[7];
-extern std::atomic<uint64_t> mm_cnt_overmax[7];
-#endif
 
 #if MODEL_BREAKDOWN
 extern std::atomic<uint64_t> lm_segs[7];	// learned model # of segs

@@ -10,7 +10,6 @@
 #include "port/port.h"
 #include <atomic>
 #include <mutex>
-#include "koo/koo.h"
 
 using namespace leveldb;
 
@@ -20,21 +19,14 @@ class VLog {
 private:
     WritableFile* writer;
     RandomAccessFile* reader;
-#if THREADSAFE
     std::atomic<uint64_t> vlog_size;
     uint64_t vlog_flushed;
-    //port::Mutex mu_;
     SpinLock s_mu_;
     char* buffer;
     std::atomic<uint64_t> current_pos;
     std::atomic<uint64_t> count_pos;
 
     void Flush(uint64_t s);
-#else
-    uint64_t vlog_size;
-    std::string buffer;
-    void Flush();
-#endif
 
 
 public:

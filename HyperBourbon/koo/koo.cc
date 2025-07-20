@@ -26,11 +26,9 @@ std::atomic<uint64_t> lm_num[7];
 uint64_t num_lm[7];		// # of learned models
 #endif
 
-#if THREADSAFE
 std::condition_variable cv;
 std::mutex cv_mtx;
 std::atomic<bool> should_stop{false};
-#endif
 
 #if SST_LIFESPAN
 std::mutex mutex_lifespan_;
@@ -77,12 +75,6 @@ std::atomic<uint32_t> num_i_path(0);
 std::atomic<uint32_t> num_m_path(0);
 std::atomic<uint64_t> i_path(0);
 std::atomic<uint64_t> m_path(0);
-#endif
-#if TIME_R_DETAIL
-std::atomic<uint32_t> num_ver(0);
-std::atomic<uint64_t> time_ver(0);
-std::atomic<uint32_t> num_vlog(0);
-std::atomic<uint64_t> time_vlog(0);
 #endif
 #if TIME_R_LEVEL
 std::atomic<uint32_t> num_i_path_l[7];
@@ -217,17 +209,6 @@ void Report() {
 		std::cout << "----------------------------------------------------------" << std::endl;
 		std::cout << "Index block path avg time = " << std::to_string(koo::i_path/((double)koo::num_i_path)) << " ns,\t# index block path = " << koo::num_i_path << ",\tTotal time = " << std::to_string(koo::i_path) << std::endl;
 		std::cout << "Learned model path avg time = " << std::to_string(koo::m_path/((double)koo::num_m_path)) << " ns,\t# model path = " << koo::num_m_path << ",\tTotal time = " << std::to_string(koo::m_path) << std::endl;
-		std::cout << "----------------------------------------------------------" << std::endl;
-	}
-#endif
-#if TIME_R_DETAIL
-	if (/*koo::num_mem ||*/ koo::num_ver) {
-		std::cout << "----------------------------------------------------------" << std::endl;
-		//std::cout << "[ MEM ]\nTotal num: " << koo::num_mem << ",\tFound num: " << koo::num_mem_succ << ",\tTotal time: " << std::to_string(koo::time_mem) << " ns,\tAVG: " << std::to_string(koo::time_mem/((double)koo::num_mem)) << " ns" << std::endl;
-		//std::cout << "[ IMM ]\nTotal num: " << koo::num_imm << ",\tFound num: " << koo::num_imm_succ << ",\tTotal time: " << std::to_string(koo::time_imm) << " ns,\tAVG: " << std::to_string(koo::time_imm/((double)koo::num_imm)) << " ns" << std::endl;
-		//std::cout << "[ VER ]\nTotal num: " << koo::num_ver << ",\tFound num: " << koo::num_ver_succ << ",\tTotal time: " << std::to_string(koo::time_ver) << " ns,\tAVG: " << std::to_string(koo::time_ver/((double)koo::num_ver)) << " ns" << std::endl;
-		std::cout << "[ VER ]\nTotal num: " << koo::num_ver << ",\tTotal time: " << std::to_string(koo::time_ver) << " ns,\tAVG: " << std::to_string(koo::time_ver/((double)koo::num_ver)) << " ns" << std::endl;
-		std::cout << "[ VLOG ]\nTotal num: " << koo::num_vlog << ",\tTotal time: " << std::to_string(koo::time_vlog) << " ns,\tAVG: " << std::to_string(koo::time_vlog/((double)koo::num_vlog)) << " ns" << std::endl;
 		std::cout << "----------------------------------------------------------" << std::endl;
 	}
 #endif

@@ -6,9 +6,7 @@
 #define STORAGE_LEVELDB_INCLUDE_OPTIONS_H_
 
 #include <stddef.h>
-#include "filter_policy.h"		// KOO
-//#include "koo/stats.h"
-#include "koo/koo.h"
+#include "filter_policy.h"
 
 namespace leveldb {
 
@@ -154,9 +152,7 @@ struct Options {
 
   // Create an Options object with default values for all fields.
 
-#if MULTI_COMPACTION
   int num_background_jobs = 9;
-#endif
   Options();
 };
 

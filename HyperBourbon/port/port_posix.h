@@ -52,11 +52,6 @@
 #include <string>
 #include "port/atomic_pointer.h"
 
-// KOO MIXGRAPH
-#include <limits>
-#include <string.h>
-#include <thread>
-
 #ifndef PLATFORM_IS_LITTLE_ENDIAN
 #define PLATFORM_IS_LITTLE_ENDIAN (__BYTE_ORDER == __LITTLE_ENDIAN)
 #endif
@@ -94,19 +89,8 @@
 #endif
 */
 
-// KOO MIXGRAPH
-#define CACHE_LINE_SIZE 64U
-#define ALIGN_AS(n) alignas(n)
-
 namespace leveldb {
 namespace port {
-
-// KOO MIXGRAPH
-extern void Crash(const std::string& srcfile, int srcline);
-extern void *cacheline_aligned_alloc(size_t size);
-extern void cacheline_aligned_free(void *memblock);
-const int64_t kMaxInt64 = std::numeric_limits<int64_t>::max();
-const int64_t kMaxUint64 = std::numeric_limits<uint64_t>::max();
 
 static const bool kLittleEndian = true;			// KOO
 //static const bool kLittleEndian = PLATFORM_IS_LITTLE_ENDIAN;
@@ -137,8 +121,6 @@ class CondVar {
   explicit CondVar(Mutex* mu);
   ~CondVar();
   void Wait();
-  // Timed condition wait. Returns true if timeout occured.	KOO MIXGRAPH
-  bool TimedWait(uint64_t abs_time_us);
   void Signal();
   void SignalAll();
  private:
@@ -149,9 +131,6 @@ class CondVar {
   CondVar(const CondVar&);
   void operator=(const CondVar&);
 };
-
-// Returns -1 if not available on this platform
-extern int PhysicalCoreID();			// KOO MIXGRAPH
 
 typedef pthread_once_t OnceType;
 #define LEVELDB_ONCE_INIT PTHREAD_ONCE_INIT

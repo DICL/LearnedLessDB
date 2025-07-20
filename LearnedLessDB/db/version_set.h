@@ -22,7 +22,6 @@
 #include "db/version_edit.h"
 #include "port/port.h"
 #include "port/thread_annotations.h"
-#include "koo/koo.h"
 
 namespace koo { class LearnedIndexData; }
 
@@ -162,9 +161,6 @@ class Version {
 	void WriteModel();
 	void ReadModel();
 	void OfflineFileLearn();
-#if MODEL_ACCURACY
-	void TestModelAccuracy(uint64_t& file_number, uint64_t& file_size);
-#endif
 
  private:
   friend class Compaction;

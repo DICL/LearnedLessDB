@@ -125,9 +125,7 @@ static uint64_t MaxCompactionBytesForLevel(unsigned level) {
 static int64_t TotalFileSize(const std::vector<FileMetaData*>& files) {
   int64_t sum = 0;
   for (size_t i = 0; i < files.size(); i++) {
-#if MULTI_COMPACTION
 		if (files[i]->being_compacted) continue;
-#endif
     sum += files[i]->file_size;
   }
   return sum;
@@ -790,7 +788,7 @@ void Version::GetOverlappingInputs(
     }
   }
 }
-#if MULTI_COMPACTION
+
 bool Version::GetOverlappingInputsNotBeingCompacted(
     unsigned level,
     const InternalKey* begin,
@@ -819,7 +817,6 @@ bool Version::GetOverlappingInputsNotBeingCompacted(
   }
   return true;
 }
-#endif
 
 std::string Version::DebugString() const {
   std::string r;
@@ -1006,12 +1003,7 @@ class VersionSet::Builder {
       // File is deleted: do nothing
     } else {
       std::vector<FileMetaData*>* files = &v->files_[level];
-#if MULTI_COMPACTION
-			//if (level > 0 && v->NumFiles(level) != 0) {			// TODO 맞나?
       if (level > 0 && !files->empty()) {
-#else
-      if (level > 0 && !files->empty()) {
-#endif
         // Must not overlap
         assert(vset_->icmp_.Compare((*files)[files->size()-1]->largest,
                                     f->smallest) < 0);
@@ -1044,10 +1036,8 @@ VersionSet::VersionSet(const std::string& dbname,
       dummy_versions_(this),
       current_(NULL) {
   AppendVersion(new Version(this));
-#if MULTI_COMPACTION
 	for (unsigned i=0; i<config::kNumLevels; i++)
 		num_being_compacted[i] = 0;
-#endif
 }
 
 VersionSet::~VersionSet() {
@@ -1055,9 +1045,6 @@ VersionSet::~VersionSet() {
 #if BOURBON_OFFLINE
 #else
 	current_->WriteModel();
-	//std::cout << "\nwrite_buffer_size: " << Options().write_buffer_size << std::endl;
-	//std::cout << "MaxFileSizeForLevel: " << MaxFileSizeForLevel(0) << " " << MaxFileSizeForLevel(1) << " " << MaxFileSizeForLevel(2) << " " << MaxFileSizeForLevel(3) << " " << MaxFileSizeForLevel(4) << " " << MaxFileSizeForLevel(5) << " " << MaxFileSizeForLevel(6) << std::endl;
-	//std::cout << "MaxBytesForLevel: " << (uint64_t)MaxBytesForLevel(0) << " " << (uint64_t)MaxBytesForLevel(1) << " " << (uint64_t)MaxBytesForLevel(2) << " " << (uint64_t)MaxBytesForLevel(3) << " " << (uint64_t)MaxBytesForLevel(4) << " " << (uint64_t)MaxBytesForLevel(5) << " " << (uint64_t)MaxBytesForLevel(6) << std::endl;
 #endif
 #endif
   current_->Unref();
@@ -1303,7 +1290,6 @@ void VersionSet::MarkFileNumberUsed(uint64_t number) {
 }
 
 void VersionSet::Finalize(Version* v) {
-	// TODO 조절 필요
   // Compute the ratio of disk usage to its limit
   for (unsigned level = 0; level + 1 < config::kNumLevels; ++level) {
     double score;
@@ -1319,15 +1305,10 @@ void VersionSet::Finalize(Version* v) {
       // file size is small (perhaps because of a small write-buffer
       // setting, or very high compression ratios, or lots of
       // overwrites/deletions).
-#if MULTI_COMPACTION
 			int num_files = v->files_[level].size() - num_being_compacted[level];
 			if (num_files < 0) num_files = 0;
       score = num_files /
           static_cast<double>(config::kL0_CompactionTrigger);
-#else
-      score = v->files_[level].size() /
-          static_cast<double>(config::kL0_CompactionTrigger);
-#endif
     } else {
       // Compute the ratio of current size to size limit.
       const uint64_t level_bytes = TotalFileSize(v->files_[level]);
@@ -1335,13 +1316,9 @@ void VersionSet::Finalize(Version* v) {
       double score1 = static_cast<double>(level_bytes) / max_bytes;
       const uint64_t avg_file_sz = (MaxFileSizeForLevel(level) +
                                     MinFileSizeForLevel(level)) >> 1;
-#if MULTI_COMPACTION
 			int num_files = v->files_[level].size() - num_being_compacted[level];
 			if (num_files < 0) num_files = 0;
       double score2 = static_cast<double>(num_files) / (max_bytes / avg_file_sz);
-#else
-      double score2 = static_cast<double>(v->files_[level].size()) / (max_bytes / avg_file_sz);
-#endif
       score = std::max(score1, score2);
     }
     v->compaction_scores_[level] = score;
@@ -1611,29 +1588,22 @@ void VersionSet::GetCompactionBoundaries(Version* v,
   }
 }
 
-#if MULTI_COMPACTION
 unsigned VersionSet::PickCompactionLevel(bool seek_driven) const {
   unsigned level = config::kNumLevels;
   for (unsigned i = 1; i + 1 < config::kNumLevels; ++i) {
     if (current_->compaction_scores_[i] >= 1.0 &&
         current_->compaction_scores_[i] >=
         current_->compaction_scores_[i + 1]) {
-      if (i == 1 && !compactions_in_progress_[0].empty()) continue;		// TODO 어차피 거의 못하니까
+      if (i == 1 && !compactions_in_progress_[0].empty()) continue;
       level = i;
       break;
     }
   }
 
-  if (seek_driven &&			// TODO level0 trigger랑 순서 바꿀까
+  if (seek_driven &&
       level == config::kNumLevels &&
       current_->file_to_compact_ != NULL &&
       current_->file_to_compact_->being_compacted == false) {
-      //current_->NumFiles(current_->file_to_compact_level_) != 0) {
-    // TODO 여기서 trigger되는 compaction은 동시에 실행되지 않는거 같음 <- Get 중 trigger라 상관없을수도?
-    /*if (current_->file_to_compact_level_ != 0 ||
-				(compactions_in_progress_[0].empty() &&
-				compactions_in_progress_[1].empty()))
-			level = current_->file_to_compact_level_;*/
 		if ((compactions_in_progress_[current_->file_to_compact_level_].empty() &&
 				compactions_in_progress_[current_->file_to_compact_level_+1].empty()))
 			level = current_->file_to_compact_level_;
@@ -1642,57 +1612,13 @@ unsigned VersionSet::PickCompactionLevel(bool seek_driven) const {
   if (level != 0 &&
 			compactions_in_progress_[0].empty() &&
 			compactions_in_progress_[1].empty() &&
-			//(current_->NumFiles(0) - num_being_compacted[0]) > 0 &&		// TODO 필요? 하면 위에도
 			current_->compaction_scores_[0] >= 1.0 &&
       current_->compaction_scores_[1] <= 1.0) {
     level = 0;
   }
 
-	// TODO compaction이 너무 자주 생기면서 straight_reads_가 안쌓여서 seek_driven=false -> C에서 모든 compaction thread Wait
-	// 어떻게 해결하지? A와 C의 밸런스 생각해야
-	// 아래 if문 넣으면 A가 느려지고(tmux0) 빼면 C가 느려짐(tmux1)
-  /*if (level == config::kNumLevels &&
-			!seek_driven &&
-			current_->file_to_compact_ != NULL &&
-			current_->file_to_compact_level_ == 0 &&
-			compactions_in_progress_[0].empty() &&
-			compactions_in_progress_[1].empty() &&
-			current_->NumFiles(0) > 0) {
-		//current_->file_to_compact_ = NULL;		// 이러면 A에서 compaction thread 너무 많이 깨움
-		level = 0;
-	}*/
   return level;
 }
-#else
-unsigned VersionSet::PickCompactionLevel(bool* locked, bool seek_driven) const {
-  // Find an unlocked level has score >= 1 where level + 1 has score < 1.
-  unsigned level = config::kNumLevels;
-  for (unsigned i = 1; i + 1 < config::kNumLevels; ++i) {
-    if (locked[i] || locked[i + 1]) {
-      continue;
-    }
-    if (current_->compaction_scores_[i] >= 1.0 &&
-        current_->compaction_scores_[i] >=
-        current_->compaction_scores_[i + 1]) {
-      level = i;
-      break;
-    }
-  }
-  if (seek_driven &&
-      level == config::kNumLevels &&
-      current_->file_to_compact_ != NULL &&
-      !locked[current_->file_to_compact_level_ + 0] &&
-      !locked[current_->file_to_compact_level_ + 1]) {
-    level = current_->file_to_compact_level_;
-  }
-  if (!locked[0] && !locked[1] &&
-      current_->compaction_scores_[0] >= 1.0 &&
-      current_->compaction_scores_[1] <= 1.0) {
-    level = 0;
-  }
-  return level;
-}
-#endif
 
 static bool OldestFirst(FileMetaData* a, FileMetaData* b) {
   return a->number < b->number;
@@ -1726,14 +1652,10 @@ Compaction* VersionSet::PickCompaction(Version* v, unsigned level) {
     uint64_t best_size = 0;
     double best_ratio = -1;
     for (size_t i = 0; i < boundaries.size(); ++i) {
-#if MULTI_COMPACTION
 			if (LA[i]->being_compacted) continue;
-#endif
       for (size_t j = i; j < boundaries.size(); ++j) {
-#if MULTI_COMPACTION
 				bool nothing_being_compacted = true;
 				if (LA[j]->being_compacted) break;		// Check LA
-				//for (size_t k=boundaries[i].start; k<boundaries[j].limit; ++k) {	// TODO j로 해도 되나? 더 효율적으로 할수 있을듯
 				for (size_t k=boundaries[j].start; k<boundaries[j].limit; ++k) {		// Check LB
 					if (LB[k]->being_compacted) {
 						nothing_being_compacted = false;
@@ -1741,7 +1663,6 @@ Compaction* VersionSet::PickCompaction(Version* v, unsigned level) {
 					}
 				}
 				if (!nothing_being_compacted) break;
-#endif
         uint64_t sz_a = LA_sizes[j + 1] - LA_sizes[i];
         uint64_t sz_b = LB_sizes[boundaries[j].limit] - LB_sizes[boundaries[i].start];
         if (boundaries[j].start == boundaries[j].limit) {
@@ -1761,18 +1682,14 @@ Compaction* VersionSet::PickCompaction(Version* v, unsigned level) {
           best_idx_limit = j + 1;
         }
       }
-#if MULTI_COMPACTION
 			if (trivial) break;
-#endif
     }
 
     // Trivial moves have a near-0 cost, so do them first.
     if (trivial) {
       for (size_t i = 0; i < LA.size(); ++i) {
         if (boundaries[i].start == boundaries[i].limit) {
-#if MULTI_COMPACTION
 					if (LA[i]->being_compacted) continue;
-#endif
           c->inputs_[0].push_back(LA[i]);
         }
       }
@@ -1789,18 +1706,13 @@ Compaction* VersionSet::PickCompaction(Version* v, unsigned level) {
         c->inputs_[1].push_back(LB[i]);
       }
     // pick the file to compact in this level
-#if MULTI_COMPACTION
     } else if (v->file_to_compact_ != NULL &&
 							 !(v->file_to_compact_->being_compacted)) {
-#else
-    } else if (v->file_to_compact_ != NULL) {
-#endif
       c->inputs_[0].push_back(v->file_to_compact_);
     // otherwise just pick the file with least overlap
     } else {
       assert(level+1 < config::kNumLevels);
       // Pick the file that overlaps with the fewest files in the next level
-#if MULTI_COMPACTION
 			size_t boundaries_size = boundaries.size();
       size_t smallest = boundaries_size;
       bool set_smallest = true;
@@ -1836,16 +1748,6 @@ Compaction* VersionSet::PickCompaction(Version* v, unsigned level) {
 				delete c;
 				return NULL;
 			}
-#else
-      size_t smallest = boundaries.size();
-      for (size_t i = 0; i < boundaries.size(); ++i) {
-        if (smallest == boundaries.size() ||
-            boundaries[smallest].limit - boundaries[smallest].start >
-            boundaries[i].limit - boundaries[i].start) {
-          smallest = i;
-        }
-      }
-#endif
       assert(smallest < boundaries.size());
       c->inputs_[0].push_back(LA[smallest]);
       for (size_t i = boundaries[smallest].start; i < boundaries[smallest].limit; ++i) {
@@ -1862,42 +1764,27 @@ Compaction* VersionSet::PickCompaction(Version* v, unsigned level) {
   }
 
   if (!trivial) {
-#if MULTI_COMPACTION
     if (!SetupOtherInputs(c)) {
     	delete c;
     	return NULL;
 		}
-#else
-    SetupOtherInputs(c);
-#endif
   }
-#if MULTI_COMPACTION
 	c->MarkFilesBeingCompacted(true);
 	RegisterCompaction(c);
 	Finalize(c->input_version_);
-#endif
   return c;
 }
 /*#endif*/
 
-#if MULTI_COMPACTION
 bool VersionSet::SetupOtherInputs(Compaction* c) {
-#else
-void VersionSet::SetupOtherInputs(Compaction* c) {
-#endif
   const unsigned level = c->level();
   assert(level + 1 < config::kNumLevels);
   InternalKey smallest, largest;
   GetRange(c->inputs_[0], &smallest, &largest);
-#if MULTI_COMPACTION
-  // TODO 이거 file_to_compact_말고 boundaries 쓰는 if문에서는 필요없지 않나? inputs_[1] 달라지는지 확인
   if (c->inputs_[1].empty()) {
 		if (!(c->input_version_->GetOverlappingInputsNotBeingCompacted(level+1, &smallest, &largest, &c->inputs_[1])))
 			return false;
 	}
-#else
-  c->input_version_->GetOverlappingInputs(level+1, &smallest, &largest, &c->inputs_[1]);
-#endif
   if (level + 2 < config::kNumLevels) {
     const Comparator* user_cmp = icmp_.user_comparator();
     std::vector<FileMetaData*> tmp;
@@ -1916,9 +1803,7 @@ void VersionSet::SetupOtherInputs(Compaction* c) {
   // key range next time.
   //compact_pointer_[level] = largest.Encode().ToString();
   c->edit_.SetCompactPointer(level, largest);
-#if MULTI_COMPACTION
 	return true;
-#endif
 }
 
 Compaction* VersionSet::CompactRange(
@@ -1926,12 +1811,8 @@ Compaction* VersionSet::CompactRange(
     const InternalKey* begin,
     const InternalKey* end) {
   std::vector<FileMetaData*> inputs;
-#if MULTI_COMPACTION
 	if (!(current_->GetOverlappingInputsNotBeingCompacted(level, begin, end, &inputs)))
 		return NULL;
-#else
-  current_->GetOverlappingInputs(level, begin, end, &inputs);
-#endif
   if (inputs.empty()) {
     return NULL;
   }
@@ -1958,15 +1839,12 @@ Compaction* VersionSet::CompactRange(
   c->input_version_->Ref();
   c->inputs_[0] = inputs;
   SetupOtherInputs(c);
-#if MULTI_COMPACTION
 	c->MarkFilesBeingCompacted(true);
 	RegisterCompaction(c);
 	Finalize(c->input_version_);
-#endif
   return c;
 }
 
-#if MULTI_COMPACTION
 void VersionSet::RegisterCompaction(Compaction* c) {
 	//if (c == nullptr) return;
 	if (c->level() == 0) {
@@ -1983,7 +1861,6 @@ void VersionSet::UnregisterCompaction(Compaction* c) {
 		CountNumBeingCompacted(c->level()+which, false, c->inputs_[which].size());
 	compactions_in_progress_[c->level()].erase(c);
 }
-#endif
 
 Compaction::Compaction(unsigned l)
     : level_(l),
@@ -2078,7 +1955,6 @@ void Compaction::ReleaseInputs() {
   }
 }
 
-#if MULTI_COMPACTION
 void Compaction::MarkFilesBeingCompacted(bool mark_as_compacted) {
 	for (size_t which=0; which<2; which++) {
 		for (auto* f : inputs_[which]) {
@@ -2088,7 +1964,6 @@ void Compaction::MarkFilesBeingCompacted(bool mark_as_compacted) {
 		}
 	}
 }
-#endif
 
 #if LEARN
 bool Version::FillData(const ReadOptions& options, FileMetaData* meta, koo::LearnedIndexData* data) {
@@ -2102,7 +1977,6 @@ void Version::WriteModel() {
 		for (auto* meta : files_[i]) {
 			koo::file_data->GetModel(meta->number)->WriteModel(
 						vset_->dbname_ + koo::model_dbname + "/" + std::to_string(meta->number) + ".model");
-						//vset_->dbname_ + "/" + std::to_string(meta->number) + ".model");
 		}
 	}
 #if MODEL_BREAKDOWN
@@ -2119,7 +1993,6 @@ void Version::ReadModel() {
 		for (auto* meta : files_[i]) {
 			koo::file_data->GetModel(meta->number)->ReadModel(
 						vset_->dbname_ + koo::model_dbname + "/" + std::to_string(meta->number) + ".model");
-						//vset_->dbname_ + "/" + std::to_string(meta->number) + ".model");
 		}
 	}
 }

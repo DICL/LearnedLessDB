@@ -24,13 +24,9 @@ struct FileMetaData {
   uint64_t file_size;         // File size in bytes
   InternalKey smallest;       // Smallest internal key served by table
   InternalKey largest;        // Largest internal key served by table
-#if MULTI_COMPACTION
 	bool being_compacted;
 
   FileMetaData() : refs(0), allowed_seeks(1 << 30), number(0), file_size(0), smallest(), largest(), being_compacted(false) { }
-#else
-  FileMetaData() : refs(0), allowed_seeks(1 << 30), number(0), file_size(0), smallest(), largest() { }
-#endif
 };
 
 class VersionEdit {

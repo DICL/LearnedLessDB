@@ -8,29 +8,6 @@ std::string model_dbname = "/models";
 double learn_model_error = 8;
 double merge_model_error = 21;
 
-#if LOOKUP_ACCURACY
-std::atomic<uint64_t> lm_error[7];
-std::atomic<uint64_t> lm_num_error[7];
-std::atomic<uint64_t> mm_error[7];
-std::atomic<uint64_t> mm_num_error[7];
-std::atomic<uint64_t> rm_error[7];
-std::atomic<uint64_t> rm_num_error[7];
-#endif
-
-#if MODEL_ACCURACY
-std::atomic<uint64_t> lm_max_error[7];
-std::atomic<uint64_t> lm_avg_error[7];
-std::atomic<uint64_t> lm_num_error2[7];
-std::atomic<uint64_t> mm_max_error[7];
-std::atomic<uint64_t> mm_avg_error[7];
-std::atomic<uint64_t> mm_num_error2[7];
-
-std::atomic<uint64_t> mm_max_error_over[7];
-std::atomic<uint64_t> mm_avg_error_over[7];
-std::atomic<uint64_t> mm_num_error_over[7];
-std::atomic<uint64_t> mm_cnt_overmax[7];
-#endif
-
 #if MODEL_BREAKDOWN
 std::atomic<uint64_t> lm_segs[7];	// learned model # of segs
 std::atomic<uint64_t> lm_keys[7];	// learned model # of segs
@@ -193,62 +170,6 @@ void Report() {
 		if (mm_num[i]) {
 			std::cout << "\t# of segs in merged model - \tAVG: " << std::to_string(mm_segs[i]/(double)mm_num[i]) << ",\tnum: " << mm_num[i] << ",\ttotal: " << mm_segs[i] << "\n";
 			std::cout << "\t# of keys in merged model - \tAVG: " << std::to_string(mm_keys[i]/(double)mm_num[i]) << ",\tnum: " << mm_num[i] << ",\ttotal: " << mm_keys[i] << "\n";
-		}
-	}
-	std::cout << "----------------------------------------------------------" << std::endl;
-#endif
-#if LOOKUP_ACCURACY
-	for (int i=0; i<7; i++) {
-		if (!(lm_num_error[i] || mm_num_error[i] || rm_num_error[i])) continue;
-		std::cout << "[ Level " << i << " ]\n";
-		uint64_t total_error = 0, total_num_error = 0;
-		if (lm_num_error[i]) {
-			total_error += lm_error[i];
-			total_num_error += lm_num_error[i];
-			std::cout << "\tLearned Model\n";
-			std::cout << "\t\tAvg. error when lookup: " << std::to_string(lm_error[i]/(double)lm_num_error[i]);
-			std::cout << "\t\tNum: " << lm_num_error[i] << ",\ttotal error: " << lm_error[i] << std::endl;
-		}
-		if (mm_num_error[i]) {
-			total_error += mm_error[i];
-			total_num_error += mm_num_error[i];
-			std::cout << "\tMerged Model\n";
-			std::cout << "\t\tAvg. error when lookup: " << std::to_string(mm_error[i]/(double)mm_num_error[i]);
-			std::cout << "\t\tNum: " << mm_num_error[i] << ",\ttotal error: " << mm_error[i] << std::endl;
-		}
-		if (rm_num_error[i]) {
-			total_error += rm_error[i];
-			total_num_error += rm_num_error[i];
-			std::cout << "\tRetrained Model\n";
-			std::cout << "\t\tAvg. error when lookup: " << std::to_string(rm_error[i]/(double)rm_num_error[i]);
-			std::cout << "\t\tNum: " << rm_num_error[i] << ",\ttotal error: " << rm_error[i] << std::endl;
-		}
-		std::cout << "\tTotal Model Lookup Error\n";
-		std::cout << "\t\tAvg. error when lookup: " << std::to_string(total_error/(double)total_num_error);
-		std::cout << "\t\tNum: " << total_num_error << ",\ttotal error: " << total_error << std::endl;
-	}
-	std::cout << "----------------------------------------------------------" << std::endl;
-#endif
-#if MODEL_ACCURACY
-	for (int i=0; i<7; i++) {
-		if (!(lm_num_error2[i] || mm_num_error2[i])) continue;
-		std::cout << "[ Level " << i << " ]\n";
-		if (lm_num_error2[i]) {
-			std::cout << "Learned Model\n";
-			std::cout << "\tNum: " << lm_num_error2[i] << ",\ttotal avg_error: " << lm_avg_error[i] << ",\ttotal max_error: " << lm_max_error[i] << std::endl;
-			std::cout << "\tAvg. avg_error: " << std::to_string(lm_avg_error[i]/(double)lm_num_error2[i]);
-			std::cout << ",\tAvg. max_error: " << std::to_string(lm_max_error[i]/(double)lm_num_error2[i]) << std::endl;
-		}
-		if (mm_num_error2[i]) {
-			std::cout << "Merged Model\n";
-			std::cout << "\tNum: " << mm_num_error2[i] << ",\ttotal avg_error: " << mm_avg_error[i] << ",\ttotal max_error: " << mm_max_error[i] << std::endl;
-			std::cout << "\tAvg. avg_error: " << std::to_string(mm_avg_error[i]/(double)mm_num_error2[i]);
-			std::cout << ",\tAvg. max_error: " << std::to_string(mm_max_error[i]/(double)mm_num_error2[i]) << std::endl;
-			std::cout << "\t--Over error bound--\n";
-			std::cout << "\tNum: " << mm_num_error_over[i] << ",\ttotal avg_error: " << mm_avg_error_over[i] << ",\ttotal max_error: " << mm_max_error_over[i] << std::endl;
-			std::cout << "\tAvg. avg_error: " << std::to_string(mm_avg_error_over[i]/(double)mm_num_error_over[i]);
-			std::cout << ",\tAvg. max_error: " << std::to_string(mm_max_error_over[i]/(double)mm_num_error_over[i]) << std::endl;
-			std::cout << "\tAvg. cnt_overmax: " << std::to_string(mm_cnt_overmax[i]/(double)mm_num_error_over[i]) << ",\ttotal cnt_overmax: " << mm_cnt_overmax[i] << std::endl;
 		}
 	}
 	std::cout << "----------------------------------------------------------" << std::endl;

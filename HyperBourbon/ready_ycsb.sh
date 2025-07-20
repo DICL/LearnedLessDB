@@ -5,4 +5,4 @@ cd ycsb/build
 rm -rf *
 cmake ..
 make -j10
-#cd ../scripts
+cd ../scripts

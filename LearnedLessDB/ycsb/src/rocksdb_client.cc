@@ -395,11 +395,10 @@ void RocksDBClient::RocksdDBLoader(uint64_t num, int coreid){
 	TimeRecord update_time(num + 1);
 #endif
 
-  //static char w_value_buf[4096];			// TODO !!!! value compression?
+  //static char w_value_buf[4096];	
   //memset(w_value_buf, 'a', 4096);
 	static char w_value_buf[4096];
 	for (int i=0; i<4096; i++) w_value_buf[i] = (char)i;
-  //RandomGenerator gen;								// db_bench value generator
 
 	for(uint64_t i=0; i<num; i++){		
 		std::string key;
@@ -412,8 +411,6 @@ void RocksDBClient::RocksdDBLoader(uint64_t num, int coreid){
 #endif
     leveldb::Slice w_value(w_value_buf, req->Length());
     ERR(db_->Put(write_options_, req->Key(), w_value));
-    //ERR(db_->Put(write_options_, req->Key(), gen.Generate(req->Length())));
-//fprintf(stderr, "load key: %s\n", req->Key().c_str());
 #if !YCSB_WRAPPER
     double time = TIME_DURATION(start, TIME_NOW);
     request_time.Insert(time);

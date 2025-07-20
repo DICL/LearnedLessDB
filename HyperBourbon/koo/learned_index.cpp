@@ -447,7 +447,7 @@ void LearnedIndexData::FillCBAStat(bool positive, bool model, uint64_t time) {
 }
 
 LearnedIndexData* FileLearnedIndexData::GetModel(int number) {
-#if BOURBON_PLUS && REMOVE_MUTEX && THREADSAFE
+#if BOURBON_PLUS && REMOVE_MUTEX
   if (file_learned_index_data.size() <= number) {
   	rw_lock_.LockWrite();
 		if (file_learned_index_data.size() <= number) {
@@ -478,7 +478,7 @@ LearnedIndexData* FileLearnedIndexData::GetModel(int number) {
 #endif
 }
 
-#if BOURBON_PLUS && REMOVE_MUTEX && THREADSAFE
+#if BOURBON_PLUS && REMOVE_MUTEX
 LearnedIndexData* FileLearnedIndexData::GetModelForLookup(int number) {
 	rw_lock_.LockRead();
   if (file_learned_index_data.size() <= number) {
@@ -522,7 +522,7 @@ std::pair<uint64_t, uint64_t> FileLearnedIndexData::GetPosition(
 }
 
 FileLearnedIndexData::~FileLearnedIndexData() {
-#if THREADSAFE && BOURBON_PLUS
+#if BOURBON_PLUS
 	rw_lock_.LockWrite();
 #else
   leveldb::MutexLock l(&mutex);
@@ -534,7 +534,7 @@ FileLearnedIndexData::~FileLearnedIndexData() {
     delete pointer;
 #endif
   }
-#if THREADSAFE && BOURBON_PLUS
+#if BOURBON_PLUS
 	rw_lock_.UnlockWrite();
 #endif
 }

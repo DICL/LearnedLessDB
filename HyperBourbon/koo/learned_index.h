@@ -175,7 +175,7 @@ namespace koo {
     // an array storing all file models and provide similar access interface with multithread protection
     class FileLearnedIndexData {
     private:
-#if THREADSAFE && BOURBON_PLUS
+#if BOURBON_PLUS
 				koo::RWLock rw_lock_;
 #else
         leveldb::port::Mutex mutex;

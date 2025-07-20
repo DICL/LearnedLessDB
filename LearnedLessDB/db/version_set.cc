@@ -424,7 +424,7 @@ Status Version::Get(const ReadOptions& options,
       saver.user_key = user_key;
       saver.value = value;
       s = vset_->table_cache_->Get(options, f->number, f->file_size,
-#if RETRAIN || TIME_R_LEVEL || AC_TEST2 || LOOKUP_ACCURACY
+#if RETRAIN || TIME_R_LEVEL || AC_TEST2
 																	 level, f,
 #endif
                                    ikey, &saver, SaveValue);
@@ -1769,11 +1769,6 @@ void Version::WriteModel() {
 			if (model != nullptr && model->Learned()) {
 				model->WriteModel(
 						vset_->dbname_ + koo::model_dbname + "/" + std::to_string(meta->number) + ".model");
-#if MODEL_ACCURACY
-				if (model->Merged()) {
-					TestModelAccuracy(meta->number, meta->file_size);
-				}
-#endif
 			}
 		}
 	}
@@ -1809,11 +1804,5 @@ void Version::OfflineFileLearn() {
 		}
 	}
 }
-
-#if MODEL_ACCURACY
-void Version::TestModelAccuracy(uint64_t& file_number, uint64_t& file_size) {
-	vset_->table_cache_->TestModelAccuracy(file_number, file_size);
-}
-#endif
 
 }  // namespace leveldb

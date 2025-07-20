@@ -26,9 +26,6 @@
 #define YCSB_COPYDB 1		// SpanDB ycsb load 외 워크로드 전 db copy -> copy한 db에서 워크로드 실행
 #define YCSB_SOSD 0
 
-#define VLOG 1
-#define THREADSAFE 1		// vlog, stats, timer
-#define MULTI_COMPACTION 1
 #define REMOVE_MUTEX 1			// shared_ptr로 Get 위한 current mem, imm, version 저장 REMOVE_MUTEX2->REMOVE_MUTEX
 #define REMOVE_MUTEX2 1			// SequenceWriteBegin mutex
 
@@ -40,14 +37,11 @@
 //#define LEARN_TRIGGER_TIME 170000000
 #define MULTI_LEARNING 1		// the number of learning threads (0: off)
 
-#define MIXGRAPH 0
 #define DEBUG 0
 #define AC_TEST 0
-#define AC_TEST_HISTORY 0
 #define BREAKDOWN 0
 #define TIME_W 0
 #define TIME_R 0
-#define TIME_R_DETAIL 0
 #define TIME_R_LEVEL 0
 #define SST_LIFESPAN 0	// level별 SST의 lifespan. table 생성(T) -> model 생성(M) -> model 사용(U)
 												// TODO workload 끝에 학습 취소되는 테이블들 계산에서 빼야함
@@ -79,7 +73,6 @@ extern std::atomic<uint64_t> lm_num[7];
 extern uint64_t num_lm[7];		// # of learned models
 #endif
 
-#if THREADSAFE
 extern std::condition_variable cv;
 extern std::mutex cv_mtx;
 extern std::atomic<bool> should_stop;
@@ -130,7 +123,6 @@ class RWLock {
 	std::atomic<int> reader_count{0};
 	std::atomic<bool> writer_active{false};
 };
-#endif
 
 #if SST_LIFESPAN
 struct FileLifespanData {
@@ -201,12 +193,6 @@ extern std::atomic<uint32_t> num_i_path;			// # of index block path
 extern std::atomic<uint32_t> num_m_path;			// # of model path
 extern std::atomic<uint64_t> i_path;			// total time of index block path
 extern std::atomic<uint64_t> m_path;			// total time of model path
-#endif
-#if TIME_R_DETAIL
-extern std::atomic<uint32_t> num_ver;
-extern std::atomic<uint64_t> time_ver;
-extern std::atomic<uint32_t> num_vlog;
-extern std::atomic<uint64_t> time_vlog;
 #endif
 #if TIME_R_LEVEL
 extern std::atomic<uint32_t> num_i_path_l[7];

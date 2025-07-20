@@ -45,7 +45,7 @@ class TableCache {
   Status Get(const ReadOptions& options,
              uint64_t file_number,
              uint64_t file_size,
-#if RETRAIN || TIME_R_LEVEL || AC_TEST2 || LOOKUP_ACCURACY
+#if RETRAIN || TIME_R_LEVEL || AC_TEST2
 						 int level, FileMetaData* meta,
 #endif
              const Slice& k,
@@ -57,14 +57,11 @@ class TableCache {
 
 	Status ModelGet(uint64_t file_number, uint64_t file_size, const Slice& k,
 									void* arg, void (*handle_result)(void*, const Slice&, const Slice&),
-#if RETRAIN || LOOKUP_ACCURACY
+#if RETRAIN
 									int level, FileMetaData* meta,
 #endif
 									koo::LearnedIndexData* model);
 	bool FillData(const ReadOptions& options, FileMetaData* meta, koo::LearnedIndexData* data);
-#if MODEL_ACCURACY
-	void TestModelAccuracy(uint64_t& file_number, uint64_t& file_size);
-#endif
 
  private:
   TableCache(const TableCache&);

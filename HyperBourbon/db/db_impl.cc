@@ -223,14 +223,8 @@ DBImpl::DBImpl(const Options& raw_options, const std::string& dbname)
       snapshots_(),
       pending_outputs_(),
       allow_background_activity_(false),
-#if MULTI_COMPACTION
       num_bg_threads_(raw_options.num_background_jobs),
-#else
-      num_bg_threads_(0),
-#endif
-#if VLOG
       bg_mem_job_cv_(&mutex_),
-#endif
       bg_fg_cv_(&mutex_),
       bg_compaction_cv_(&mutex_),
       bg_memtable_cv_(&mutex_),
@@ -253,18 +247,11 @@ DBImpl::DBImpl(const Options& raw_options, const std::string& dbname)
   has_imm_.Release_Store(NULL);
   backup_in_progress_.Release_Store(NULL);
   env_->StartThread(&DBImpl::CompactMemTableWrapper, this);
-#if MULTI_COMPACTION
   for (int i = 1; i < num_bg_threads_; i++) {
     env_->StartThread(&DBImpl::CompactLevelWrapper, this);
   }
-#else
-  env_->StartThread(&DBImpl::CompactLevelWrapper, this);
-  num_bg_threads_ = 2;
-#endif
-#if VLOG
 	koo::db = this;
 	vlog = new koo::VLog(dbname_ + "/vlog.txt");
-#endif
 
   // Reserve ten files or so for other uses and give the rest to TableCache.
   const int table_cache_size = options_.max_open_files - kNumNonTableCacheFiles;
@@ -272,11 +259,6 @@ DBImpl::DBImpl(const Options& raw_options, const std::string& dbname)
   versions_ = new VersionSet(dbname_, &options_, table_cache_,
                              &internal_comparator_);
 
-#if !MULTI_COMPACTION
-  for (unsigned i = 0; i < leveldb::config::kNumLevels; ++i) {
-    levels_locked_[i] = false;
-  }
-#endif
   mutex_.Unlock();
   writers_mutex_.Lock();
   writers_mutex_.Unlock();
@@ -285,14 +267,12 @@ DBImpl::DBImpl(const Options& raw_options, const std::string& dbname)
 DBImpl::~DBImpl() {
   // Wait for background work to finish
   mutex_.Lock();
-#if VLOG
 	while (bg_mem_job_) {
 		bg_mem_job_cv_.Wait();
 	}
 	CompactMemTable(imm_);
 	CompactMemTable(mem_);
 	koo::db->vlog->Sync();
-#endif
 
   shutting_down_.Release_Store(this);  // Any non-NULL value is ok
   bg_compaction_cv_.SignalAll();
@@ -302,9 +282,7 @@ DBImpl::~DBImpl() {
   }
 
   mutex_.Unlock();
-#if THREADSAFE
 	env_->StopLearning();
-#endif
 
   if (db_lock_ != NULL) {
     env_->UnlockFile(db_lock_);
@@ -340,9 +318,7 @@ DBImpl::~DBImpl() {
 	koo::file_stats.clear();
 #endif
 #endif
-#if VLOG
 	delete vlog;
-#endif
 }
 
 Status DBImpl::NewDB() {
@@ -723,14 +699,7 @@ Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
     const Slice min_user_key = meta.smallest.user_key();
     const Slice max_user_key = meta.largest.user_key();
     if (base != NULL) {
-#if MULTI_COMPACTION
-			level = 0;				// TODO ongoing compaction output과 비교
-#else
-      level = base->PickLevelForMemTableOutput(min_user_key, max_user_key);
-      while (level > 0 && levels_locked_[level]) {
-        --level;
-      }
-#endif
+			level = 0;
     }
     edit->AddFile(level, meta.number, meta.file_size,
                   meta.smallest, meta.largest);
@@ -755,7 +724,6 @@ Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
   return s;
 }
 
-#if VLOG
 void DBImpl::CompactMemTable(MemTable *table) {
 	mutex_.AssertHeld();
 	if (table == nullptr) return;
@@ -773,7 +741,6 @@ void DBImpl::CompactMemTable(MemTable *table) {
 		s = versions_->LogAndApply(&edit, &mutex_, &bg_log_cv_, &bg_log_occupied_);
 	}
 }
-#endif
 
 void DBImpl::CompactMemTableThread() {
   MutexLock l(&mutex_);
@@ -782,18 +749,14 @@ void DBImpl::CompactMemTableThread() {
   }
   while (!shutting_down_.Acquire_Load()) {
     while (!shutting_down_.Acquire_Load() && imm_ == NULL) {
-#if VLOG
 			bg_mem_job_ = false;
 			bg_mem_job_cv_.Signal();
-#endif
       bg_memtable_cv_.Wait();
     }
     if (shutting_down_.Acquire_Load()) {
       break;
     }
-#if VLOG
 		bg_mem_job_ = true;
-#endif
 
 #if BLEARN && !BOURBON_OFFLINE
 		koo::Stats* instance = koo::Stats::GetInstance();
@@ -956,30 +919,17 @@ void DBImpl::CompactLevelThread() {
     bg_compaction_cv_.Wait();
   }
   while (!shutting_down_.Acquire_Load()) {
-#if MULTI_COMPACTION
     unsigned level = config::kNumLevels;
     while (!shutting_down_.Acquire_Load() && manual_compaction_ == NULL) {
     	level = versions_->PickCompactionLevel(straight_reads_ > kStraightReads);
     	if (level != config::kNumLevels) break;
       bg_compaction_cv_.Wait();
     }
-#else		// MULTI_COMPACTION
-    while (!shutting_down_.Acquire_Load() &&
-           manual_compaction_ == NULL &&
-           !versions_->NeedsCompaction(levels_locked_, straight_reads_ > kStraightReads)) {
-      bg_compaction_cv_.Wait();
-    }
-#endif
     if (shutting_down_.Acquire_Load()) {
       break;
     }
 
-#if MULTI_COMPACTION
     Status s = BackgroundCompaction(level);
-#else
-    assert(manual_compaction_ == NULL || num_bg_threads_ == 2);
-    Status s = BackgroundCompaction();
-#endif
     bg_fg_cv_.SignalAll(); // before the backoff In case a waiter
                            // can proceed despite the error
 
@@ -987,10 +937,8 @@ void DBImpl::CompactLevelThread() {
       // Success
     } else if (shutting_down_.Acquire_Load()) {
       // Error most likely due to shutdown; do not wait
-#if MULTI_COMPACTION
 		} else if (s.IsNotFound()) {
 			bg_compaction_cv_.Wait();
-#endif
     } else {
       // Wait a little bit before retrying background compaction in
       // case this is an environmental problem and we do not want to
@@ -1017,11 +965,7 @@ void DBImpl::RecordBackgroundError(const Status& s) {
   }
 }
 
-#if MULTI_COMPACTION
 Status DBImpl::BackgroundCompaction(unsigned level) {
-#else
-Status DBImpl::BackgroundCompaction() {
-#endif
   mutex_.AssertHeld();
 #if BLEARN && !BOURBON_OFFLINE
 	koo::Stats* instance = koo::Stats::GetInstance();
@@ -1044,29 +988,16 @@ Status DBImpl::BackgroundCompaction() {
         (m->end ? m->end->DebugString().c_str() : "(end)"),
         (m->done ? "(end)" : manual_end.DebugString().c_str()));
   } else {
-#if !MULTI_COMPACTION
-    unsigned level = versions_->PickCompactionLevel(levels_locked_, straight_reads_ > kStraightReads);
-#endif
     if (level != config::kNumLevels) {
       c = versions_->PickCompaction(versions_->current(), level);
     }
-#if !MULTI_COMPACTION
-    if (c) {
-      assert(!levels_locked_[c->level() + 0]);
-      assert(!levels_locked_[c->level() + 1]);
-      levels_locked_[c->level() + 0] = true;
-      levels_locked_[c->level() + 1] = true;
-    }
-#endif
   }
 
   Status status;
 
   if (c == NULL) {
     // Nothing to do
-#if MULTI_COMPACTION
 		return Status::NotFound("cannot find compaction!");
-#endif
   } else if (!is_manual && c->IsTrivialMove() && c->level() > 0) {
     // Move file to next level
     for (size_t i = 0; i < c->num_input_files(0); ++i) {
@@ -1074,10 +1005,6 @@ Status DBImpl::BackgroundCompaction() {
       c->edit()->DeleteFile(c->level(), f->number);
       c->edit()->AddFile(c->level() + 1, f->number, f->file_size,
                          f->smallest, f->largest);
-/*#if LEARN
-			auto* model = koo::file_data->GetModelForLookup(f->number);
-			if (model != nullptr) model->level = c->level() + 1;
-#endif*/
     }
     status = versions_->LogAndApply(c->edit(), &mutex_, &bg_log_cv_, &bg_log_occupied_);
 #if REMOVE_MUTEX
@@ -1085,10 +1012,8 @@ Status DBImpl::BackgroundCompaction() {
 		current_for_read_.reset(new CurrentForRead(this));
 		mutex_.Lock();
 #endif
-#if MULTI_COMPACTION
 		c->MarkFilesBeingCompacted(false);
 		versions_->UnregisterCompaction(c);
-#endif
 #if BLEARN && !LEARNING_ALL && !BOURBON_OFFLINE
 		if (!koo::fresh_write) {
 #if BOURBON_PLUS
@@ -1146,26 +1071,18 @@ Status DBImpl::BackgroundCompaction() {
       RecordBackgroundError(status);
     }
     CleanupCompaction(compact);
-#if MULTI_COMPACTION
 		c->MarkFilesBeingCompacted(false);
 		versions_->UnregisterCompaction(c);
-#endif
     c->ReleaseInputs();
     DeleteObsoleteFiles();
   }
-#if MULTI_COMPACTION
 	bg_compaction_cv_.SignalAll();
-#endif
 
 #if BLEARN && !BOURBON_OFFLINE
 	instance->PauseTimer(time_started, 7);
 #endif
 
   if (c) {
-#if !MULTI_COMPACTION
-    levels_locked_[c->level() + 0] = false;
-    levels_locked_[c->level() + 1] = false;
-#endif
     delete c;
   }
 
@@ -1723,32 +1640,14 @@ Status DBImpl::Get(const ReadOptions& options,
     } else if (imm != NULL && imm->Get(lkey, value, &s)) {
       // Done
     } else {
-#if TIME_R_DETAIL
-			std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
       s = current->Get(options, lkey, value, &stats);
-#if TIME_R_DETAIL
-			std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-			koo::time_ver += nano.count();
-			koo::num_ver++;
-#endif
       have_stat_update = true;
     }
-#if VLOG
 		if (s.ok()) {
-#if TIME_R_DETAIL
-			std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
 			uint64_t value_address = DecodeFixed64(value->c_str());
 			uint32_t value_size = DecodeFixed32(value->c_str() + sizeof(uint64_t));
 			*value = std::move(koo::db->vlog->ReadRecord(value_address, value_size));
-#if TIME_R_DETAIL
-			std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-			koo::time_vlog += nano.count();
-			koo::num_vlog++;
-#endif
 		}
-#endif
 #if !REMOVE_MUTEX
     mutex_.Lock();
 #endif
@@ -1953,15 +1852,11 @@ void DBImpl::ReleaseSnapshot(const Snapshot* s) {
 
 // Convenience methods
 Status DBImpl::Put(const WriteOptions& o, const Slice& key, const Slice& val) {
-#if VLOG
 	uint64_t value_address = koo::db->vlog->AddRecord(key, val);
 	char buffer[sizeof(uint64_t) + sizeof(uint32_t)];
 	EncodeFixed64(buffer, value_address);
 	EncodeFixed32(buffer + sizeof(uint64_t), val.size());
 	return DB::Put(o, key, (Slice) {buffer, sizeof(uint64_t) + sizeof(uint32_t)});
-#else
-  return DB::Put(o, key, val);
-#endif
 }
 
 Status DBImpl::Delete(const WriteOptions& options, const Slice& key) {
@@ -1976,16 +1871,6 @@ Status DBImpl::Write(const WriteOptions& options, WriteBatch* updates) {
   if (s.ok() && updates != NULL) { // NULL batch is for compactions
     WriteBatchInternal::SetSequence(updates, w.start_sequence_);
 
-#if !VLOG
-    // Add to log and apply to memtable.  We do this without holding the lock
-    // because both the log and the memtable are safe for concurrent access.
-    // The synchronization with readers occurs with SequenceWriteEnd.
-    s = w.log_->AddRecord(WriteBatchInternal::Contents(updates));
-
-    if (s.ok() && options.sync) {
-      s = w.logfile_->Sync();
-    }
-#endif
     if (s.ok()) {
       s = WriteBatchInternal::InsertInto(updates, w.mem_);
     }
@@ -2440,9 +2325,7 @@ DB::~DB() { }
 Status DB::Open(const Options& options, const std::string& dbname,
                 DB** dbptr) {
   *dbptr = NULL;
-#if VLOG
 	koo::env = options.env;
-#endif
 #if LEARN
 	koo::file_data = new koo::FileLearnedIndexData();
 	koo::initial_time = __rdtsc();
@@ -2455,9 +2338,7 @@ Status DB::Open(const Options& options, const std::string& dbname,
 #if BOURBON_PLUS
 	koo::file_stats_data = new koo::FileStatsData();
 #endif
-#if THREADSAFE
 	options.env->SetPrepareDeleteOff();
-#endif
 
   DBImpl* impl = new DBImpl(options, dbname);
   impl->mutex_.Lock();
@@ -2530,13 +2411,8 @@ Status DestroyDB(const std::string& dbname, const Options& options) {
     uint64_t number;
     FileType type;
     for (size_t i = 0; i < filenames.size(); i++) {
-#if VLOG
       if ((ParseFileName(filenames[i], &number, &type) &&
           type != kDBLockFile) || filenames[i].find("vlog") != std::string::npos) {  // Lock file will be deleted at end
-#else
-      if (ParseFileName(filenames[i], &number, &type) &&
-          type != kDBLockFile) {  // Lock file will be deleted at end
-#endif
         Status del = env->DeleteFile(dbname + "/" + filenames[i]);
         if (result.ok() && !del.ok()) {
           result = del;

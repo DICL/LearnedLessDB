@@ -34,7 +34,4 @@
 /missing
 /stamp-h1
 /ycsb/build
-/ycsb/results
 tags
-/read_cold_ycsb
-/sosd

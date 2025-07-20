@@ -14,7 +14,6 @@
 #include <vector>
 #include <cstring>
 #include "timer.h"
-#include "koo/koo.h"
 
 using std::string;
 using std::to_string;
@@ -28,22 +27,13 @@ namespace koo {
         static Stats* singleton;
         Stats();
 
-#if THREADSAFE
         std::vector<Timer*> timers;
-#else
-        std::vector<Timer> timers;
-#endif
     public:
         uint64_t initial_time;
 
         static Stats* GetInstance();
-#if THREADSAFE
         uint64_t StartTimer(uint32_t id);
         std::pair<uint64_t, uint64_t> PauseTimer(uint64_t time_started, uint32_t id, bool record = false);
-#else
-        void StartTimer(uint32_t id);
-        std::pair<uint64_t, uint64_t> PauseTimer(uint32_t id, bool record = false);
-#endif
         void ResetTimer(uint32_t id);
         uint64_t ReportTime(uint32_t id);
         void ReportTime();

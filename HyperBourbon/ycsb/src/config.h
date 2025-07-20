@@ -125,9 +125,7 @@ void set_default_props(utils::Properties* props) {
 
   props->SetProperty("threadcount", "1");
   props->SetProperty("max_write_buffer_number", "2");
-#if MULTI_COMPACTION
   props->SetProperty("max_background_jobs", "2");
-#endif
 #if MULTI_LEARNING
   props->SetProperty("max_learning_jobs", "1");
 #endif
@@ -148,9 +146,7 @@ void parse_command_line_arguments(int argc, char* argv[], utils::Properties* pro
     { "recordcount", required_argument, 0, 0 },
     { "operationcount", required_argument, 0, 0 },
     { "max_write_buffer_number", required_argument, 0, 0 },
-#if MULTI_COMPACTION
     { "max_background_jobs", required_argument, 0, 0 },
-#endif
 #if MULTI_LEARNING
     { "max_learning_jobs", required_argument, 0, 0 }, 
 #endif

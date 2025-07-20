@@ -516,9 +516,6 @@ void RocksDBClient::perfmon_loop() {
   double write_throughput = 0;
   double read_throughput = 0;
 
-#if AC_TEST && AC_TEST_HISTORY && TIME_R
-	bool load = workload_proxy_->is_load() ? true : false;
-#endif
   while (!stop_.load()) {
     // timestamp
     auto tp_now = std::chrono::steady_clock::now();
@@ -546,25 +543,8 @@ void RocksDBClient::perfmon_loop() {
     read_throughput = (double) read_cnt_inc / dur;
      
     static char writebuf[200];
-#if AC_TEST && AC_TEST_HISTORY
-		/*auto now = std::chrono::system_clock::now();
-		time_t tm_now = std::chrono::system_clock::to_time_t(now);
-		struct tm tstruct = *localtime(&tm_now);
-    sprintf(writebuf, "*** %02d:%02d:%02d timestamp: %.3lf - Throughput: %.3lf Mops/s (Write: %.3lf Mops/s, Read: %.3lf Mops/s) *** %lu %lu %lu\n", tstruct.tm_hour, tstruct.tm_min, tstruct.tm_sec, timestamp, total_throughput/1000/1000, write_throughput/1000/1000, read_throughput/1000/1000, koo::num_files_flush, koo::num_files_compaction, koo::num_learned);*/
-#if TIME_R
-		if (load) {
-	    sprintf(writebuf, "*** timestamp: %.3lf - Throughput: %.3lf Mops/s (Write: %.3lf Mops/s, Read: %.3lf Mops/s) *** %lu %lu %lu\n", timestamp, total_throughput/1000/1000, write_throughput/1000/1000, read_throughput/1000/1000, koo::num_files_flush, koo::num_files_compaction, koo::num_learned);
-		} else {
-	    sprintf(writebuf, "*** timestamp: %.3lf - Throughput: %.3lf Mops/s (Write: %.3lf Mops/s, Read: %.3lf Mops/s) *** %lu %lu %lu %u %u\n", timestamp, total_throughput/1000/1000, write_throughput/1000/1000, read_throughput/1000/1000, koo::num_files_flush, koo::num_files_compaction, koo::num_learned, koo::num_i_path.load(), koo::num_m_path.load());
-		}
-#else
-    sprintf(writebuf, "*** timestamp: %.3lf - Throughput: %.3lf Mops/s (Write: %.3lf Mops/s, Read: %.3lf Mops/s) *** %lu %lu %lu\n", timestamp, total_throughput/1000/1000, write_throughput/1000/1000, read_throughput/1000/1000, koo::num_files_flush, koo::num_files_compaction, koo::num_learned);
-#endif
-#else
     sprintf(writebuf, "*** timestamp: %.3lf - Throughput: %.3lf Mops/s (Write: %.3lf Mops/s, Read: %.3lf Mops/s) ***\n", timestamp, total_throughput/1000/1000, write_throughput/1000/1000, read_throughput/1000/1000);
-#endif
     outfile << writebuf;
-    //fprintf(stdout, "*** timestamp: %.3lf - Throughput: %.3lf Mops/s (Write: %.3lf Mops/s, Read: %.3lf Mops/s) ***\n", timestamp, total_throughput/1000/1000, write_throughput/1000/1000, read_throughput/1000/1000);
 
     tp_last = tp_now;
     total_cnt_last = total_cnt_now;

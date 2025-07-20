@@ -93,16 +93,12 @@ class DBImpl : public DB {
   // REQURES: mutex_ not held
   SequenceNumber LastSequence();
 
-#if VLOG
 	koo::VLog* vlog;
-#endif
 #if LEARN
 	std::atomic<int> version_count;
 	Version* GetCurrentVersion();
 	void ReturnCurrentVersion(Version* version);
-#if THREADSAFE
 	const std::string GetDBName() { return dbname_;	}
-#endif
 #endif
 
  private:
@@ -132,9 +128,7 @@ class DBImpl : public DB {
   static void CompactMemTableWrapper(void* db)
   { reinterpret_cast<DBImpl*>(db)->CompactMemTableThread(); }
   void CompactMemTableThread();
-#if VLOG
   void CompactMemTable(MemTable *table);
-#endif
 
   Status RecoverLogFile(uint64_t log_number,
                         VersionEdit* edit,
@@ -154,11 +148,7 @@ class DBImpl : public DB {
   static void CompactLevelWrapper(void* db)
   { reinterpret_cast<DBImpl*>(db)->CompactLevelThread(); }
   void CompactLevelThread();
-#if MULTI_COMPACTION
   Status BackgroundCompaction(unsigned level) EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-#else
-  Status BackgroundCompaction() EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-#endif
 
   void RecordBackgroundError(const Status& s);
 
@@ -209,14 +199,9 @@ class DBImpl : public DB {
   std::set<uint64_t> pending_outputs_;
 
   bool allow_background_activity_;
-#if !MULTI_COMPACTION
-  bool levels_locked_[leveldb::config::kNumLevels];
-#endif
   int num_bg_threads_;
-#if VLOG
 	bool bg_mem_job_ = true;
 	port::CondVar bg_mem_job_cv_;
-#endif
   // Tell the foreground that background has done something of note
   port::CondVar bg_fg_cv_;
   // Communicate with compaction background thread

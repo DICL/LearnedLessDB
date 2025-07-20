@@ -597,7 +597,6 @@ class PosixEnv : public Env {
     if (fd < 0) {
       s = IOError(fname, errno);
     }
-#if VLOG
 		else if (!mmap_limit_.Acquire() || fname.find("vlog") != std::string::npos) {
 			posix_fadvise(fd, 0, 0, POSIX_FADV_RANDOM);
 			*result = new PosixRandomAccessFile(fname, fd);
@@ -618,42 +617,17 @@ class PosixEnv : public Env {
 			mmap_limit_.Release();
 		}
 		return s;
-#else
-    else if (mmap_limit_.Acquire()) {
-      uint64_t size;
-      s = GetFileSize(fname, &size);
-      if (s.ok()) {
-        void* base = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
-        if (base != MAP_FAILED) {
-          *result = new PosixMmapReadableFile(fname, base, size, &mmap_limit_);
-        } else {
-          s = IOError(fname, errno);
-        }
-      }
-      close(fd);
-      if (!s.ok()) {
-        mmap_limit_.Release();
-      }
-    } else {
-      *result = new PosixRandomAccessFile(fname, fd);
-    }
-    return s;
-#endif
   }
 
   virtual Status NewWritableFile(const std::string& fname,
                                  WritableFile** result) {
 		Status s;
-#if VLOG
 		FILE* f;
 		if (fname.find("vlog") != std::string::npos) {
 			f = fopen(fname.c_str(), "a+");
 		} else {
 			f = fopen(fname.c_str(), "w");
 		}
-#else
-    FILE* f = fopen(fname.c_str(), "w");
-#endif
     if (f == NULL) {
       *result = NULL;
       s = IOError(fname, errno);
@@ -863,14 +837,6 @@ class PosixEnv : public Env {
     return static_cast<uint64_t>(tv.tv_sec) * 1000000 + tv.tv_usec;
   }
 
-#if MIXGRAPH
-  virtual uint64_t NowNanos() {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return static_cast<uint64_t>(ts.tv_sec) * 1000000000 + ts.tv_nsec;
-  }
-#endif
-
   virtual void SleepForMicroseconds(int micros) {
     usleep(micros);
   }
@@ -882,30 +848,19 @@ class PosixEnv : public Env {
 	void PrepareLearn() {
 #endif
 		koo::Stats* instance = koo::Stats::GetInstance();
-#if !THREADSAFE
-		std::priority_queue<std::pair<double, LearnParam>> learn_pq;
-#endif
 		bool wait_for_time = false;
 		int64_t time_diff = 1000000;
-#if THREADSAFE
 		running_learning_threads++;
-#endif
 		prepare_queue_mutex_.Lock();
 
 		// dead lookp
 		while(true) {
 			while (learning_prepare.empty()) {
-#if THREADSAFE
 				if (prepare_delete) break;
-#endif
 				preparing_queue_cv_.Wait();
-#if THREADSAFE
 				if (prepare_delete) break;
-#endif
 			}
-#if THREADSAFE
 			if (prepare_delete) break;
-#endif
 
 			uint32_t dummy;
 			uint64_t time_start = (__rdtscp(&dummy) - instance->initial_time) / koo::reference_frequency;
@@ -928,13 +883,9 @@ class PosixEnv : public Env {
 				double score = koo::learn_cb_model->CalculateCB(level, front.second.second->file_size);
 				if (score > CBModel_Learn::const_size_to_cost) learn_pq.push(std::make_pair(score, front));
 #endif
-#if THREADSAFE
 				if (prepare_delete) break;
-#endif
 			}
-#if THREADSAFE
 			if (prepare_delete) break;
-#endif
 
 			while (!learn_pq.empty()) {
 				auto& top = learn_pq.top().second;
@@ -976,32 +927,21 @@ class PosixEnv : public Env {
 #if !MULTI_LEARNING
 				learn_pq.pop();
 #endif
-#if THREADSAFE
 				if (prepare_delete) break;
-#endif
 			}
-#if THREADSAFE
 			if (prepare_delete) break;
-#endif
 
 			if (wait_for_time) {
 				prepare_queue_mutex_.Unlock();
-#if THREADSAFE
 				std::unique_lock<std::mutex> lock(koo::cv_mtx);
 				koo::cv.wait_for(lock, std::chrono::microseconds(time_diff/1000), [] {
 					return koo::should_stop.load(); 
 				});
-#else
-				SleepForMicroseconds((int) (time_diff / 1000));
-#endif
 				prepare_queue_mutex_.Lock();
 				wait_for_time = false;
-#if THREADSAFE
 				if (prepare_delete) break;
-#endif
 			}
 		}
-#if THREADSAFE
 		// Write learning queue info
 #if MULTI_LEARNING
 		if (!id) {
@@ -1050,7 +990,6 @@ class PosixEnv : public Env {
 		}
 		fprintf(stdout, "Learning Thread finished\n");
 		fflush(stdout);
-#endif
 	}
 
 #if MULTI_LEARNING
@@ -1064,24 +1003,19 @@ class PosixEnv : public Env {
 #endif
 
 	void PrepareLearning(uint64_t time_start, int level, FileMetaData* meta) {
-#if THREADSAFE
 		if (prepare_delete) return;
-#endif
 		if (koo::MOD != 6 && koo::MOD != 7 && koo::MOD != 9) return;
 #if MULTI_LEARNING
 		prepare_queue_mutex_.Lock();
 #else
 		MutexLock guard(&prepare_queue_mutex_);
 #endif
-#if THREADSAFE
 		if (prepare_delete) {
 			prepare_queue_mutex_.Unlock();
 			return;
 		}
-#endif
 		if (!preparing_thread_started) {
 			preparing_thread_started = true;
-#if THREADSAFE
 			// Read learning queue info
 			std::ifstream ifs(koo::db->GetDBName() + koo::model_dbname + "/lqueue", std::ios::binary);
 			if (ifs.good()) {
@@ -1116,7 +1050,6 @@ class PosixEnv : public Env {
 				}
 				ifs.close();
 			}
-#endif
 #if MULTI_LEARNING
 			for (int i=0; i<num_learning_jobs; i++) {
 				std::thread background_thread(PosixEnv::PrepareLearnEntryPoint, this, i);
@@ -1137,7 +1070,6 @@ class PosixEnv : public Env {
 #endif
 	}
 
-#if THREADSAFE
 	void StopLearning() {
 		if (prepare_delete) return;
 		prepare_delete = true;
@@ -1155,7 +1087,6 @@ class PosixEnv : public Env {
 	void SetPrepareDeleteOff() {
 		prepare_delete = false;
 	}
-#endif
 #endif
 
  private:
@@ -1197,13 +1128,11 @@ class PosixEnv : public Env {
 	bool preparing_thread_started;
 	port::Mutex prepare_queue_mutex_;
   port::CondVar preparing_queue_cv_;
-#if THREADSAFE
 	bool prepare_delete = false;
 	std::atomic<int> running_learning_threads{0};
 	std::mutex stop_mutex;
 	std::condition_variable stop_cv;
 	std::priority_queue<std::pair<double, LearnParam>> learn_pq;
-#endif
 #endif
 };
 
@@ -1217,9 +1146,7 @@ PosixEnv::PosixEnv() : page_size_(getpagesize()),
 #if LEARN
 											 preparing_thread_started(false),
 											 preparing_queue_cv_(&prepare_queue_mutex_),
-#if THREADSAFE
 											 prepare_delete(false),
-#endif
 #endif
                        mmap_limit_() {
   PthreadCall("mutex_init", pthread_mutex_init(&mu_, NULL));

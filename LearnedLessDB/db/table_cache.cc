@@ -109,7 +109,7 @@ Iterator* TableCache::NewIterator(const ReadOptions& options,
 Status TableCache::Get(const ReadOptions& options,
                        uint64_t file_number,
                        uint64_t file_size,
-#if RETRAIN || TIME_R_LEVEL || AC_TEST2 || LOOKUP_ACCURACY
+#if RETRAIN || TIME_R_LEVEL || AC_TEST2
 											 int level, FileMetaData* meta,
 #endif
                        const Slice& k,
@@ -121,7 +121,7 @@ Status TableCache::Get(const ReadOptions& options,
 	// Check if model exists
 	koo::LearnedIndexData* model = koo::file_data->GetModelForLookup(file_number);
 	if (model != nullptr && model->Learned()) {
-#if RETRAIN || LOOKUP_ACCURACY
+#if RETRAIN
 		Status s = ModelGet(file_number, file_size, k, arg, saver, level, meta, model);
 #else
 		Status s = ModelGet(file_number, file_size, k, arg, saver, model);
@@ -201,7 +201,7 @@ void TableCache::Evict(uint64_t file_number) {
 
 Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slice& k, 
 														void* arg, void (*saver)(void*, const Slice&, const Slice&),
-#if RETRAIN || LOOKUP_ACCURACY
+#if RETRAIN
 													  int level, FileMetaData* meta,
 #endif
 														koo::LearnedIndexData* model) {
@@ -404,7 +404,7 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 		koo::num_tryretraining++;
 #endif
 #endif
-#if RETRAIN2 || LOOKUP_ACCURACY
+#if RETRAIN2
 		uint64_t last_left = left;
 #endif
 
@@ -486,85 +486,10 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
 #endif
 
 		cache_->Release(handle);
-#if LOOKUP_ACCURACY
-#if !RETRAIN2
-		double extra_error = -1;
-		if (i == i_) {
-			if (next) extra_error = left - pos_block_lower2 + 1;
-			else extra_error = pos_block_upper2 - left + 1;
-		} else if (std::abs(int(i - i_)) == 1) {
-			if (i_ < i) extra_error = last_left + koo::block_num_entries - left + 1;
-			else extra_error = left + koo::block_num_entries - last_left + 1;
-		}
-		double cur_error = model->GetError();
-#endif
-		if (extra_error == -1) {
-			if (i == i_) {
-				if (next) extra_error = left - pos_block_lower2 + 1;
-				else extra_error = pos_block_upper2 - left + 1;
-			} else {
-				int index_diff = std::abs(int(i) - int(i_));
-				if (i_ < i) extra_error = last_left + koo::block_num_entries * index_diff - left + 1;
-				else extra_error = left + koo::block_num_entries * index_diff - last_left + 1;
-				//fprintf(stderr, "ERRROORR extra_error == -1, i: %lu, i_: %lu\n", i, i_);
-				//fprintf(stderr, "\textra_error: %f\n", extra_error);
-			}
-		}
-		size_t diff_abs = cur_error + extra_error;
-		koo::mm_num_error[level]++;
-		koo::mm_error[level] += diff_abs;
-		// mutex로 막아야 하나??
-		std::ofstream ofs("/koo/HyperLearningless3/koo/data/MM_lookup_error_"+std::to_string(level)+".txt", std::ios::app);
-		ofs << diff_abs << std::endl;
-		ofs.close();
-#endif
 		return s;
 	}
 
 	cache_->Release(handle);
-#if LOOKUP_ACCURACY
-	size_t pos_block_mid, diff_abs;
-	if (index_lower == index_upper) {
-		pos_block_mid = (pos_block_lower + pos_block_upper) / 2 + 1;
-		if (pos_block_mid > left) {
-			diff_abs = pos_block_mid - left;
-		} else {
-			diff_abs = left - pos_block_mid;
-		}
-	} else {
-		size_t mid = (lower + upper) / 2;
-		size_t index_mid = mid / koo::block_num_entries;
-		pos_block_mid = mid % koo::block_num_entries;
-		if (pos_block_mid > left) {
-			if (index_mid == i) diff_abs = pos_block_mid - left;
-			else diff_abs = (koo::block_num_entries - pos_block_mid) + left;
-		} else {
-			if (index_mid == i) diff_abs = left - pos_block_mid;
-			else diff_abs = (koo::block_num_entries - left) + pos_block_mid;
-		}
-	}
-	if (isMergedModel) {
-		koo::mm_num_error[level]++;
-		koo::mm_error[level] += diff_abs;
-		std::ofstream ofs("/koo/HyperLearningless3/koo/data/MM_lookup_error_"+std::to_string(level)+".txt", std::ios::app);
-		ofs << diff_abs << std::endl;
-		ofs.close();
-	} else {
-		if (model->is_retrained_)	{
-			koo::rm_num_error[level]++;
-			koo::rm_error[level] += diff_abs;
-			std::ofstream ofs("/koo/HyperLearningless3/koo/data/RM_lookup_error_"+std::to_string(level)+".txt", std::ios::app);
-			ofs << diff_abs << std::endl;
-			ofs.close();
-		} else {
-			koo::lm_num_error[level]++;
-			koo::lm_error[level] += diff_abs;
-			std::ofstream ofs("/koo/HyperLearningless3/koo/data/LM_lookup_error_"+std::to_string(level)+".txt", std::ios::app);
-			ofs << diff_abs << std::endl;
-			ofs.close();
-		}
-	}
-#endif
 	return s;
 }
 
@@ -580,15 +505,5 @@ bool TableCache::FillData(const ReadOptions& options, FileMetaData* meta, koo::L
 	} else return false;
 }
 
-#if MODEL_ACCURACY
-void TableCache::TestModelAccuracy(uint64_t& file_number, uint64_t& file_size) {
-	Cache::Handle* handle = nullptr;
-	Status s = FindTable(file_number, file_size, &handle);
-	if (s.ok()) {
-		Table* t = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->table;
-		t->TestModelAccuracy(file_number);
-	}
-}
-#endif
 
 }  // namespace leveldb

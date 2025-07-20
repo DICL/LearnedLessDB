@@ -43,9 +43,7 @@ int main(int argc, char* argv[]){
   options.create_if_missing = true;
   //options.filter_policy = nullptr;
 
-#if MULTI_COMPACTION
   options.num_background_jobs = std::stoi(common_props.GetProperty("max_background_jobs"));
-#endif
 #if MULTI_LEARNING
   options.env->num_learning_jobs = std::stoi(common_props.GetProperty("max_learning_jobs"));
 #endif

@@ -107,9 +107,6 @@ class Table {
   void ReadFilter(const Slice& filter_handle_value);
 
   void FillData(const ReadOptions& options, koo::LearnedIndexData* data);
-#if MODEL_ACCURACY
-  void TestModelAccuracy(uint64_t& file_number);
-#endif
 
   // No copying allowed
   Table(const Table&);
