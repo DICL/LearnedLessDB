@@ -319,7 +319,6 @@ void Table::FillData(const ReadOptions& options, koo::LearnedIndexData* data) {
         data->string_keys->emplace_back(parsed_key.user_key.SliceToInteger());
 #else
         data->string_keys.emplace_back(parsed_key.user_key.SliceToInteger());
-        //data->string_keys->emplace_back(parsed_key.user_key.data(), parsed_key.user_key.size());
 #endif
     }
 
@@ -332,16 +331,6 @@ void Table::FillData(const ReadOptions& options, koo::LearnedIndexData* data) {
         temp.DecodeFrom(&temp_slice);
         koo::block_size = temp.size() + kBlockTrailerSize;
     }
-
-    /*if (i < index_iter->num_restarts_-1 && num_entries_this_block != koo::block_num_entries) {
-        BlockHandle temp;
-        Slice temp_slice = index_iter->value();
-        temp.DecodeFrom(&temp_slice);
-        fprintf(stdout, "koo::%lu %lu %lu\n", koo::block_num_entries, koo::entry_size, koo::block_size);
-        fprintf(stdout, "%d %d %lu\n", num_entries_this_block, block_iter->restarts_ / num_entries_this_block, temp.size()+kBlockTrailerSize);
-        fprintf(stdout, "i: %d, num_restarts_: %d\n\n", i, index_iter->num_restarts_);
-		}*/
-
     delete block_iter;
   }
 
@@ -376,45 +365,6 @@ void Table::TestModelAccuracy(uint64_t& file_number) {
 
 		iiter->Next();
 	}*/
-#if DEBUG 
-	// keys
-	std::ofstream of_keys;
-	of_keys.open("/koo/HyperLearningless/koo/data/" + std::to_string(file_number) + "_keys.txt");
-	//of_keys.open("/koo/HyperLearningless/koo/data/keys_" + std::to_string(file_number) + ".txt");
-	int cnt = 0;
-	for (auto& key : keys) {
-		std::string str = std::to_string(key) + " " + std::to_string(cnt++) + "\n";
-		//std::string str = "(" + std::to_string(key) + ", " + std::to_string(cnt++) + ")\n";
-		of_keys.write(str.c_str(), str.size());
-	}
-	of_keys.close();
-
-	std::ofstream ofs("/koo/HyperLearningless/koo/data/" + std::to_string(file_number) + "_segs.txt", std::ios::binary);
-	koo::LearnedIndexData* model = koo::file_data->GetModel(file_number);
-	if (!model->Learned()) return;
-	std::vector<koo::Segment> &segs = model->string_segments;
-	size_t segs_size = segs.size();
-	ofs.write(reinterpret_cast<const char*>(&segs_size), sizeof(size_t));
-	for (auto& s : segs) {
-		ofs.write(reinterpret_cast<const char*>(&s.x), sizeof(uint64_t));
-		ofs.write(reinterpret_cast<const char*>(&s.k), sizeof(double));
-		ofs.write(reinterpret_cast<const char*>(&s.b), sizeof(double));
-		ofs.write(reinterpret_cast<const char*>(&s.x_last), sizeof(uint64_t));
-		ofs.write(reinterpret_cast<const char*>(&s.y_last), sizeof(uint32_t));
-	}
-	ofs.write(reinterpret_cast<const char*>(&model->min_key), sizeof(uint64_t));
-	ofs.write(reinterpret_cast<const char*>(&model->max_key), sizeof(uint64_t));
-	ofs.close();
-
-	std::ofstream of_segs("/koo/HyperLearningless/koo/data/" + std::to_string(file_number) + "_segs-real.txt");
-	of_segs.precision(15);
-	koo::LearnedIndexData* model2 = koo::file_data->GetModel(file_number);
-	if (!model2->Learned()) return;
-	std::vector<koo::Segment> &segs2 = model2->string_segments;
-	for (auto& s : segs2)
-		of_segs << "(" << s.x << ", )~(" << s.x_last << ", " << s.y_last << "): y = " << s.k << " * x + " << s.b << "\n";
-	of_segs.close();
-#endif
 
 	// Accuracy test
 	koo::LearnedIndexData* model = koo::file_data->GetModelForLookup(file_number);
@@ -447,7 +397,6 @@ void Table::TestModelAccuracy(uint64_t& file_number) {
 	for (int i=0; i<segs_size-1; i++) {			// dummy segment
 		koo::Segment seg = segs[i];
 		end = seg.x_last;
-		//if (i == segs_size-1 && end < keys_size-1) end = keys_size-1;
 		str_diff += "\n" + std::to_string(i)+ ": (" + std::to_string(seg.x) + ", ) ~ (" + std::to_string(seg.x_last) + ", " + std::to_string(seg.y_last) + "): y = " + std::to_string(seg.k) + " * x + " + std::to_string(seg.b) + "\n";
 		for (uint64_t j=start; j<keys_size; j++) {
 			uint64_t key = (*keys)[j];
@@ -475,12 +424,8 @@ void Table::TestModelAccuracy(uint64_t& file_number) {
 
 	double diff_avg = diff_sum / keys_size;
 
-	if (diff_avg < 0 || diff_max < 0) { fprintf(stderr, "ERRRROOOOOOOOOOOOORRRRRRRRRRR\n"); write = true; }
-	if (diff_avg > 10000 || diff_max > 10000) { fprintf(stderr, "ERRRROOOOOOOOOOOOORRRRRRRRRRR2 %lu\n", model->file_number); write = true; }
 	uint64_t diff_avg_uint = static_cast<uint64_t>(std::round(diff_avg));
 	uint64_t diff_max_uint = static_cast<uint64_t>(std::round(diff_max));
-	if (diff_avg < 0 || diff_max < 0) { fprintf(stderr, "ERRRROOOOOOOOOOOOORRRRRRRRRRR1\n"); write = true; }
-	if (diff_avg > 10000 || diff_max > 10000) { fprintf(stderr, "ERRRROOOOOOOOOOOOORRRRRRRRRRR12 %lu\n", model->file_number); write = true; }
 	if (std::isnan(diff_avg_uint) || std::isinf(diff_avg_uint)) {
 		fprintf(stderr, "ERROR!!! fn: %lu, %lu\n", model->file_number, diff_avg_uint);
 		write = true;
@@ -520,46 +465,15 @@ void Table::TestModelAccuracy(uint64_t& file_number) {
 		of_stdev << str_error << "\n";
 		of_stdev.clos();*/
 	}
-//#if DEBUG && AC_TEST
-	//if (diff_max > error_bound) {
-		//if (model->level == 0) koo::num_learntime_l0_err++;
-		/*std::cout << std::endl;
-		std::cout << "******************* Error Bound **********************" << std::endl;
-		std::cout << "File number: " << file_number << ", level = " << model->level << ", # keys: " << keys_size << ", min_key: " << model->min_key << ", max_key: " << model->max_key << std::endl;
-		std::cout << "# segments: " << segs_size << ", min_x: " << segs.front().x << ", max_x_last: " << segs[segs_size-2].x_last << std::endl;
-		std::cout << "Average error bound: +-" << diff_avg << std::endl;
-		std::cout << "Maximum error bound: +-" << diff_max << std::endl;
-		std::cout << "Max index: " << max_idx << std::endl;
-		std::cout << "# keys whose diff > error bound: " << cnt_overmax << std::endl;
-		//std::cout << "Merge History: " << model->GetMergeHistory() << std::endl;
-		if (keys_size != cnt_keys) std::cout << "!!!! Model does not cover all keys !!!!" << keys_size << " " << cnt_keys << std::endl;
-		std::cout << "******************************************************" << std::endl;
-		std::cout << std::endl;*/
-	//if (write) {
 	std::ofstream of_diff;
-	of_diff.open("/koo/HyperLearningless3/koo/data/diff_L" + std::to_string(model->level) + "_" + std::to_string(file_number) + ".txt");
+	of_diff.open("./koo/data/diff_L" + std::to_string(model->level) + "_" + std::to_string(file_number) + ".txt");
 	of_diff << "min_key: " << std::to_string(keys->front()) << ", max_key: " << std::to_string(keys->back()) << "\n";
 	of_diff << "Average error bound: +-" << diff_avg << "\n";
 	of_diff << "Maximum error bound: +-" << diff_max << "\n";
 	of_diff << "Max index: " << max_idx << "\n\n";
 	of_diff.write(str_diff.c_str(), str_diff.size());
 	of_diff.close();
-	//}
-	//}
-//#endif
-#if MERGE && AC_TEST_
-	if (diff_max > error_bound) {
-		KOO::num_merged_err++;
-	}
-#endif
-
 	
-	// For emulation
-	/*std::ofstream of_keys_;
-	of_keys.open("/koo/merging-plr/real_HyperLevelDB_keys/test/cutting/keys_" + std::to_string(file_number) + ".txt");
-	for (auto& key : keys) of_keys << key << "\n";
-	of_keys_.close();*/
-
 }
 #endif
 #endif

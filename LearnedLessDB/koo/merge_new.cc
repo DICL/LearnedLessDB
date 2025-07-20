@@ -69,27 +69,7 @@ bool MergeModel::Merge() {
 	if (!(segs_output.back().k == 0 && segs_output.back().b == 0))
 		segs_output.emplace_back(Segment(end_key, 0, 0, 0, 0));
 
-#if DEBUG
-	WriteModel();
-#endif
-
 	return true;
-}
-
-void MergeModel::WriteModel() {
-	std::string number = std::to_string(file_number);
-/*	std::ofstream of_info("/koo/HyperLearningless/koo/data/segs_" + number + "_infos.txt");
-	for (auto& info : seg_infos)
-		of_info << info.first << " " << info.second << std::endl;
-	of_info.close();*/
-	std::ofstream of("/koo/HyperLearningless/koo/data/segs_" + number + ".txt");
-	of.precision(15);
-	for (auto& s : segs_output) {
-		of << "(" << s.x << ", )~(" << s.x_last << ", " << s.y_last << "): y = " << s.k << " * x + " << s.b << "\n";
-		if (s.x >= s.x_last && s.x != end_key)
-			std::cout << "ERROR 8: " << file_number << std::endl;
-	}
-	of.close();
 }
 
 }

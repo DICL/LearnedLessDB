@@ -20,13 +20,9 @@ class VLog {
 private:
     WritableFile* writer;
     RandomAccessFile* reader;
-    //std::string buffer;
     std::atomic<uint64_t> vlog_size;
-#if THREADSAFE
     uint64_t vlog_flushed;
-    //port::Mutex mu_;
     SpinLock s_mu_;
-#endif
 
     char* buffer;
     std::atomic<uint64_t> current_pos;

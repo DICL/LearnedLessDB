@@ -61,13 +61,8 @@ void YCSBRunner::run_all() {
 		size_t load_num = wp.record_count();
 		size_t request_num = wp.operation_count();
 
-#if YCSB_KEY
-		if (is_load) wrappers.push_back(nullptr);
-		else wrappers.push_back(new WorkloadWrapper(&wp, request_num, false));
-#else
 		if (is_load) wrappers.push_back(new WorkloadWrapper(&wp, load_num, true));
 		else wrappers.push_back(new WorkloadWrapper(&wp, request_num, false));
-#endif
 	}
 
 #if YCSB_COPYDB
@@ -82,16 +77,9 @@ void YCSBRunner::run_all() {
 #endif
 
 	if (size == 2) {
-#if YCSB_KEY
-		RocksDBClient rocksdb_client0(&(wps[0]), num_threads_, options_, data_dir_, db_);
-#else
 		RocksDBClient rocksdb_client0(&(wps[0]), num_threads_, options_, data_dir_, db_, wrappers[0]);
-#endif
 		RocksDBClient rocksdb_client1(&(wps[1]), num_threads_, options_, data_dir_, db_, wrappers[1]);
 	  rocksdb_client0.run();
-#if AC_TEST
-		//koo::count_compaction_triggered_after_load = true;
-#endif
 		rocksdb_client1.run();
 #if YCSB_COPYDB
 		fprintf(stdout, "Start deleting db: %s\n", GetDayTime().c_str());
@@ -102,20 +90,13 @@ void YCSBRunner::run_all() {
 		fflush(stdout);
 #endif
 	} else if (size == 6) {
-#if YCSB_KEY
-		RocksDBClient rocksdb_client0(&(wps[0]), num_threads_, options_, data_dir_, db_);
-#else
 		RocksDBClient rocksdb_client0(&(wps[0]), num_threads_, options_, data_dir_, db_, wrappers[0]);
-#endif
 		RocksDBClient rocksdb_client1(&(wps[1]), num_threads_, options_, data_dir_, db_, wrappers[1]);
 		RocksDBClient rocksdb_client2(&(wps[2]), num_threads_, options_, data_dir_, db_, wrappers[2]);
 		RocksDBClient rocksdb_client3(&(wps[3]), num_threads_, options_, data_dir_, db_, wrappers[3]);
 		RocksDBClient rocksdb_client4(&(wps[4]), num_threads_, options_, data_dir_, db_, wrappers[4]);
 		RocksDBClient rocksdb_client5(&(wps[5]), num_threads_, options_, data_dir_, db_, wrappers[5]);
 		rocksdb_client0.run();
-#if AC_TEST
-		//koo::count_compaction_triggered_after_load = true;
-#endif
 		rocksdb_client1.run();
 		rocksdb_client2.run();
 		rocksdb_client3.run();
@@ -143,21 +124,8 @@ void YCSBRunner::run_all() {
 	} else {
 		for (int i=0; i<size; i++) {
 	    WorkloadProxy wp(workloads_[i]);
-#if YCSB_LOAD_THREAD
-			if (size == 1 && wp.is_load()) koo::only_load = true;
-#endif
-#if YCSB_KEY
-			if (wp.is_load()) {
-				RocksDBClient rocksdb_client(&(wps[i]), num_threads_, options_, data_dir_, db_);
-			  rocksdb_client.run();
-			} else {
-				RocksDBClient rocksdb_client(&(wps[i]), num_threads_, options_, data_dir_, db_, wrappers[i]);
-			  rocksdb_client.run();
-			}
-#else
 			RocksDBClient rocksdb_client(&(wps[i]), num_threads_, options_, data_dir_, db_, wrappers[i]);
 		  rocksdb_client.run();
-#endif
 		}
 #if YCSB_COPYDB
 		fprintf(stdout, "Start deleting db: %s\n", GetDayTime().c_str());
@@ -176,10 +144,6 @@ void YCSBRunner::run_all() {
     WorkloadProxy wp(workloads_[i]);
     RocksDBClient rocksdb_client(&wp, num_threads_, options_, data_dir_, db_);
     rocksdb_client.run();
-
-    /*if (i == size-1) continue;
-	  printf("Waiting...\n");			// YCSB_CXX
-		sleep(5);*/
   }
 #endif
 

@@ -46,7 +46,6 @@ const unsigned kStraightReads = 10;
 
 const int kNumNonTableCacheFiles = 10;
 
-#if REMOVE_MUTEX
 class DBImpl::CurrentForRead {
  public:
   CurrentForRead(DBImpl* parent) : parent_(parent) {
@@ -73,7 +72,6 @@ class DBImpl::CurrentForRead {
   MemTable* mem_;
   MemTable* imm_;
 };
-#endif
 
 // Information kept for every waiting writer
 struct DBImpl::Writer {
@@ -253,9 +251,7 @@ DBImpl::DBImpl(const Options& raw_options, const std::string& dbname)
 #else
       num_bg_threads_(0),
 #endif
-#if VLOG
       bg_mem_job_cv_(&mutex_),
-#endif
       bg_fg_cv_(&mutex_),
       bg_compaction_cv_(&mutex_),
       bg_memtable_cv_(&mutex_),
@@ -286,10 +282,8 @@ DBImpl::DBImpl(const Options& raw_options, const std::string& dbname)
   env_->StartThread(&DBImpl::CompactLevelWrapper, this);
   num_bg_threads_ = 2;
 #endif
-#if VLOG
 	koo::db = this;
 	vlog = new koo::VLog(dbname_ + "/vlog.txt");
-#endif
 
   // Reserve ten files or so for other uses and give the rest to TableCache.
   const int table_cache_size = options_.max_open_files - kNumNonTableCacheFiles;
@@ -310,14 +304,12 @@ DBImpl::DBImpl(const Options& raw_options, const std::string& dbname)
 DBImpl::~DBImpl() {
   // Wait for background work to finish
   mutex_.Lock();
-#if VLOG
 	while (bg_mem_job_) {
 		bg_mem_job_cv_.Wait();
 	}
 	CompactMemTable(imm_);
 	CompactMemTable(mem_);
 	koo::db->vlog->Sync();
-#endif
 
   shutting_down_.Release_Store(this);  // Any non-NULL value is ok
   bg_compaction_cv_.SignalAll();
@@ -327,13 +319,7 @@ DBImpl::~DBImpl() {
   }
 
   mutex_.Unlock();
-#if THREADSAFE
 	env_->StopLearning();
-#endif
-#if OFFLINE_FILELEARN
-	// learn files before delete db (offline file learning)
-	koo::db->versions_->current()->OfflineFileLearn();
-#endif
 
   if (db_lock_ != NULL) {
     env_->UnlockFile(db_lock_);
@@ -342,9 +328,7 @@ DBImpl::~DBImpl() {
 #if MERGE
 	koo::Report();
 #endif
-#if REMOVE_MUTEX
   current_for_read_.reset();
-#endif
   delete versions_;
   if (mem_ != NULL) mem_->Unref();
   if (imm_ != NULL) imm_->Unref();
@@ -361,9 +345,7 @@ DBImpl::~DBImpl() {
 #if LEARN
 	delete koo::file_data;
 #endif
-#if VLOG
 	delete vlog;
-#endif
 }
 
 Status DBImpl::NewDB() {
@@ -745,7 +727,6 @@ Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
   return s;
 }
 
-#if VLOG
 void DBImpl::CompactMemTable(MemTable *table) {
 	mutex_.AssertHeld();
 	if (table == nullptr) return;
@@ -763,7 +744,6 @@ void DBImpl::CompactMemTable(MemTable *table) {
 		s = versions_->LogAndApply(&edit, &mutex_, &bg_log_cv_, &bg_log_occupied_);
 	}
 }
-#endif
 
 void DBImpl::CompactMemTableThread() {
   MutexLock l(&mutex_);
@@ -772,18 +752,14 @@ void DBImpl::CompactMemTableThread() {
   }
   while (!shutting_down_.Acquire_Load()) {
     while (!shutting_down_.Acquire_Load() && imm_ == NULL) {
-#if VLOG
 			bg_mem_job_ = false;
 			bg_mem_job_cv_.Signal();
-#endif
       bg_memtable_cv_.Wait();
     }
     if (shutting_down_.Acquire_Load()) {
       break;
     }
-#if VLOG
 		bg_mem_job_ = true;
-#endif
 
     // Save the contents of the memtable as a new Table
     VersionEdit edit;
@@ -816,11 +792,9 @@ void DBImpl::CompactMemTableThread() {
       imm_->Unref();
       imm_ = NULL;
       has_imm_.Release_Store(NULL);
-#if REMOVE_MUTEX
       mutex_.Unlock();
       current_for_read_.reset(new CurrentForRead(this));
       mutex_.Lock();
-#endif
       bg_fg_cv_.SignalAll();
       bg_compaction_cv_.Signal();
       DeleteObsoleteFiles();
@@ -934,9 +908,6 @@ void DBImpl::CompactLevelThread() {
 		unsigned level = config::kNumLevels;
     while (!shutting_down_.Acquire_Load() && manual_compaction_ == NULL) {
     	level = versions_->PickCompactionLevel(straight_reads_ > kStraightReads);
-#if MULTI_COMPACTION_CNT
-			koo::num_PickCompactionLevel++;
-#endif
     	if (level != config::kNumLevels) break;
       bg_compaction_cv_.Wait();
 		}
@@ -1021,15 +992,9 @@ Status DBImpl::BackgroundCompaction() {
   } else {
 #if !MULTI_COMPACTION
     unsigned level = versions_->PickCompactionLevel(levels_locked_, straight_reads_ > kStraightReads);
-#if MULTI_COMPACTION_CNT
-		koo::num_PickCompactionLevel++;
-#endif
 #endif
     if (level != config::kNumLevels) {
       c = versions_->PickCompaction(versions_->current(), level);
-#if MULTI_COMPACTION_CNT
-			koo::num_PickCompaction++;
-#endif
     }
 #if !MULTI_COMPACTION
     if (c) {
@@ -1065,14 +1030,9 @@ Status DBImpl::BackgroundCompaction() {
 #endif
     }
     status = versions_->LogAndApply(c->edit(), &mutex_, &bg_log_cv_, &bg_log_occupied_);
-#if REMOVE_MUTEX
     mutex_.Unlock();
     current_for_read_.reset(new CurrentForRead(this));
     mutex_.Lock();
-#endif
-#if MULTI_COMPACTION_CNT
-		koo::num_output_files += c->num_input_files(0);
-#endif
 #if MULTI_COMPACTION
 		c->MarkFilesBeingCompacted(false);
 		versions_->UnregisterCompaction(c);
@@ -1252,11 +1212,6 @@ Status DBImpl::FinishCompactionOutputFile(CompactionState* compact,
 #endif
 
 #if LEARN
-	//int level = compact->compaction->level() + 1;
-#if AC_TEST3
-	koo::num_files_compaction_[level]++;
-#endif
-	//CompactionState::Output* output = compact->current_output();
 #if MERGE
 	if (!compact->merge_model) {
 #endif
@@ -1310,15 +1265,11 @@ Status DBImpl::InstallCompactionResults(CompactionState* compact) {
         level + 1,
         out.number, out.file_size, out.smallest, out.largest);
   }
-#if REMOVE_MUTEX
   Status s = versions_->LogAndApply(compact->compaction->edit(), &mutex_, &bg_log_cv_, &bg_log_occupied_);
   mutex_.Unlock();
   current_for_read_.reset(new CurrentForRead(this));
   mutex_.Lock();
   return s;
-#else
-  return versions_->LogAndApply(compact->compaction->edit(), &mutex_, &bg_log_cv_, &bg_log_occupied_);
-#endif
 }
 
 #if MERGE
@@ -1769,14 +1720,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 		koo::size_outputs[which][level] += stats.bytes_written;
 	}
 #endif
-/*#if AC_TEST
-	if (koo::count_compaction_triggered_after_load) {
-		koo::num_outputs_compaction_triggered_after_load += compact->outputs.size();
-		koo::num_inputs_compaction_triggered_after_load += c_->num_input_files(0) + c_->num_input_files(1);
-		koo::size_inputs_compaction_triggered_after_load += stats.bytes_read;
-		koo::size_outputs_compaction_triggered_after_load += stats.bytes_written;
-	}
-#endif*/
 
 #if MERGE
 	if (compact->merge_model && status.ok()) {
@@ -1825,9 +1768,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 #if AC_TEST
 				koo::num_merged++;
 #endif
-#if AC_TEST3
-				koo::num_files_merged_[c_->level()+1]++;
-#endif
 #if TIME_W
 				koo::merge_size += merge->seg_infos.size();
 				koo::num_merge_size++;
@@ -1867,9 +1807,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 			koo::lifespans[output.number].T_end = env_->NowMicros();
 		}
 		koo::mutex_lifespan_.unlock();
-#endif
-#if MULTI_COMPACTION_CNT
-		koo::num_output_files += compact->outputs.size();
 #endif
   }
   if (!status.ok()) {
@@ -1951,9 +1888,6 @@ Status DBImpl::Get(const ReadOptions& options,
                    const Slice& key,
                    std::string* value) {
   Status s;
-#if !REMOVE_MUTEX
-  MutexLock l(&mutex_);
-#endif
   SequenceNumber snapshot;
   if (options.snapshot != NULL) {
     snapshot = reinterpret_cast<const SnapshotImpl*>(options.snapshot)->number_;
@@ -1961,77 +1895,18 @@ Status DBImpl::Get(const ReadOptions& options,
     snapshot = versions_->LastSequence();
   }
 
-#if REMOVE_MUTEX
   std::shared_ptr<CurrentForRead> current_for_read = current_for_read_;
   MemTable* mem = current_for_read->mem();
   MemTable* imm = current_for_read->imm();
   Version* current = current_for_read->v();
-#else
-  MemTable* mem = mem_;
-  MemTable* imm = imm_;
-  Version* current = versions_->current();
-  mem->Ref();
-  if (imm != NULL) imm->Ref();
-  current->Ref();
-#endif
 
   bool have_stat_update = false;
   Version::GetStats stats;
 
   // Unlock while reading from files and memtables
   {
-#if !REMOVE_MUTEX
-    mutex_.Unlock();
-#endif
     // First look in the memtable, then in the immutable memtable (if any).
     LookupKey lkey(key, snapshot);
-#if TIME_R_DETAIL
-		/*koo::num_mem++;
-		std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-    bool result = mem->Get(lkey, value, &s);
-    std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-    koo::time_mem += nano.count();
-    if (result) koo::num_mem_succ++;
-    else {
-    	if (imm != NULL) {
-				koo::num_imm++;
-				StartTime = std::chrono::system_clock::now();
-    		result = imm->Get(lkey, value, &s);
-				nano = std::chrono::system_clock::now() - StartTime;
-    		koo::time_imm += nano.count();
-    		if (result) koo::num_imm_succ++;
-    		else {
-    			koo::num_ver++;
-					StartTime = std::chrono::system_clock::now();
-					s = current->Get(options, lkey, value, &stats);
-					nano = std::chrono::system_clock::now() - StartTime;
-					koo::time_ver += nano.count();
-					if (s.ok()) koo::num_ver_succ++;
-		      have_stat_update = true;
-				}
-			} else {
-    		koo::num_ver++;
-				StartTime = std::chrono::system_clock::now();
-				s = current->Get(options, lkey, value, &stats);
-				nano = std::chrono::system_clock::now() - StartTime;
-				koo::time_ver += nano.count();
-				if (s.ok()) koo::num_ver_succ++;
-	      have_stat_update = true;
-			}
-		}*/
-    if (mem->Get(lkey, value, &s)) {
-      // Done
-    } else if (imm != NULL && imm->Get(lkey, value, &s)) {
-      // Done
-    } else {
-			std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-      s = current->Get(options, lkey, value, &stats);
-			std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-	    koo::time_ver += nano.count();
-    	koo::num_ver++;
-      have_stat_update = true;
-    }
-#else
     if (mem->Get(lkey, value, &s)) {
       // Done
     } else if (imm != NULL && imm->Get(lkey, value, &s)) {
@@ -2040,39 +1915,17 @@ Status DBImpl::Get(const ReadOptions& options,
       s = current->Get(options, lkey, value, &stats);
       have_stat_update = true;
     }
-#endif
-#if VLOG
 		if (s.ok()) {
-#if TIME_R_DETAIL
-			std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
 			uint64_t value_address = DecodeFixed64(value->c_str());
 			uint32_t value_size = DecodeFixed32(value->c_str() + sizeof(uint64_t));
 			*value = std::move(koo::db->vlog->ReadRecord(value_address, value_size));
-#if TIME_R_DETAIL
-			std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-			koo::time_vlog += nano.count();
-			koo::num_vlog++;
-#endif
 		}
-#endif
-#if !REMOVE_MUTEX
-    mutex_.Lock();
-#endif
   }
 
   if (have_stat_update && current->UpdateStats(stats)) {
     bg_compaction_cv_.Signal();
   }
   ++straight_reads_;
-#if MULTI_COMPACTION
-	//if (straight_reads_ == 100) bg_compaction_cv_.Signal();
-#endif
-#if !REMOVE_MUTEX
-  mem->Unref();
-  if (imm != NULL) imm->Unref();
-  current->Unref();
-#endif
   return s;
 }
 
@@ -2262,15 +2115,11 @@ void DBImpl::ReleaseSnapshot(const Snapshot* s) {
 
 // Convenience methods
 Status DBImpl::Put(const WriteOptions& o, const Slice& key, const Slice& val) {
-#if VLOG
 	uint64_t value_address = koo::db->vlog->AddRecord(key, val);
 	char buffer[sizeof(uint64_t) + sizeof(uint32_t)];
 	EncodeFixed64(buffer, value_address);
 	EncodeFixed32(buffer + sizeof(uint64_t), val.size());
 	return DB::Put(o, key, (Slice) {buffer, sizeof(uint64_t) + sizeof(uint32_t)});
-#else
-  return DB::Put(o, key, val);
-#endif
 }
 
 Status DBImpl::Delete(const WriteOptions& options, const Slice& key) {
@@ -2285,16 +2134,6 @@ Status DBImpl::Write(const WriteOptions& options, WriteBatch* updates) {
   if (s.ok() && updates != NULL) { // NULL batch is for compactions
     WriteBatchInternal::SetSequence(updates, w.start_sequence_);
 
-#if !VLOG
-    // Add to log and apply to memtable.  We do this without holding the lock
-    // because both the log and the memtable are safe for concurrent access.
-    // The synchronization with readers occurs with SequenceWriteEnd.
-    s = w.log_->AddRecord(WriteBatchInternal::Contents(updates));
-
-    if (s.ok() && options.sync) {
-      s = w.logfile_->Sync();
-    }
-#endif
     if (s.ok()) {
       s = WriteBatchInternal::InsertInto(updates, w.mem_);
     }
@@ -2313,7 +2152,6 @@ Status DBImpl::Write(const WriteOptions& options, WriteBatch* updates) {
 Status DBImpl::SequenceWriteBegin(Writer* w, WriteBatch* updates) {
   Status s;
 
-#if REMOVE_MUTEX2
 	if (mem_->ApproximateMemoryUsage() <= (double)options_.write_buffer_size * 0.9) {
     straight_reads_ = 0;
     w->micros_ = versions_->NumLevelFiles(0);
@@ -2324,7 +2162,6 @@ Status DBImpl::SequenceWriteBegin(Writer* w, WriteBatch* updates) {
       mem_->Ref();
     }
 	} else {
-#endif
     mutex_.Lock();
     straight_reads_ = 0;
     bool force = updates == NULL;
@@ -2346,14 +2183,7 @@ Status DBImpl::SequenceWriteBegin(Writer* w, WriteBatch* updates) {
         // We have filled up the current memtable, but the previous
         // one is still being compacted, so we wait.
         bg_memtable_cv_.Signal();
-#if TIME_MODELCOMP
-				std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
         bg_fg_cv_.Wait();
-#if TIME_MODELCOMP
-				std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-				koo::sum_waitimm += nano.count();
-#endif
       } else {
         // Attempt to switch to a new memtable and trigger compaction of old
         assert(versions_->PrevLogNumber() == 0);
@@ -2374,11 +2204,9 @@ Status DBImpl::SequenceWriteBegin(Writer* w, WriteBatch* updates) {
         mem_->Ref();
         force = false;   // Do not force another compaction if have room
         enqueue_mem = true;
-#if REMOVE_MUTEX
         mutex_.Unlock();
         current_for_read_.reset(new CurrentForRead(this));
         mutex_.Lock();
-#endif
         break;
       }
     }
@@ -2398,9 +2226,7 @@ Status DBImpl::SequenceWriteBegin(Writer* w, WriteBatch* updates) {
     }
 
     mutex_.Unlock();
-#if REMOVE_MUTEX2
   }
-#endif
 
   if (s.ok()) {
     uint64_t diff = updates ? WriteBatchInternal::Count(updates) : 0;
@@ -2408,24 +2234,7 @@ Status DBImpl::SequenceWriteBegin(Writer* w, WriteBatch* updates) {
     w->linked_ = true;
     w->next_ = NULL;
 
-#if REMOVE_MUTEX2
     ticket = __sync_add_and_fetch(&writers_upper_, 1 + diff);
-#else
-    writers_mutex_.Lock();
-    if (writers_tail_) {
-      writers_tail_->next_ = w;
-      w->prev_ = writers_tail_;
-    }
-    writers_tail_ = w;
-    ticket = __sync_add_and_fetch(&writers_upper_, 1 + diff);
-    while (w->block_if_backup_in_progress_ &&
-           backup_in_progress_.Acquire_Load()) {
-      w->wake_me_when_head_ = true;
-      w->cv_.Wait();
-      w->wake_me_when_head_ = false;
-    }
-    writers_mutex_.Unlock();
-#endif
     w->start_sequence_ = ticket - diff;
     w->end_sequence_ = ticket;
   }
@@ -2442,30 +2251,6 @@ void DBImpl::SequenceWriteEnd(Writer* w) {
   versions_->SetLastSequence(w->end_sequence_);
   mutex_.Unlock();
 
-#if !REMOVE_MUTEX2
-  writers_mutex_.Lock();
-  if (w->prev_) {
-    w->prev_->next_ = w->next_;
-    if (w->has_imm_) {
-      w->prev_->has_imm_ = true;
-      w->has_imm_ = false;
-    }
-  }
-  if (w->next_) {
-    w->next_->prev_ = w->prev_;
-    // if we're the head and we're setting someone else to be the head who wants
-    // to be notified when they become the head, signal them.
-    if (w->next_->wake_me_when_head_ && !w->prev_) {
-      w->next_->cv_.Signal();
-    }
-  }
-  if (writers_tail_ == w) {
-    assert(!w->next_);
-    writers_tail_ = NULL;
-  }
-  writers_mutex_.Unlock();
-#endif
-
   if (w->has_imm_ && !w->prev_) {
     mutex_.Lock();
     has_imm_.Release_Store(imm_);
@@ -2475,55 +2260,11 @@ void DBImpl::SequenceWriteEnd(Writer* w) {
   }
 
   if (w->micros_ > config::kL0_SlowdownWritesTrigger) {
-#if TIME_MODELCOMP
-				std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-#endif
     env_->SleepForMicroseconds(w->micros_ - config::kL0_SlowdownWritesTrigger);
-#if TIME_MODELCOMP
-				std::chrono::nanoseconds nano = std::chrono::system_clock::now() - StartTime;
-				koo::sum_micros += nano.count();
-#endif
   }
 }
 
 void DBImpl::WaitOutWriters() {
-#if !REMOVE_MUTEX2
-  Writer w(&writers_mutex_);
-  writers_mutex_.Lock();
-  if (writers_tail_) {
-    writers_tail_->next_ = &w;
-    w.prev_ = writers_tail_;
-  }
-  writers_tail_ = &w;
-  w.linked_ = true;
-  w.next_ = NULL;
-  while (w.prev_) {
-    w.wake_me_when_head_ = true;
-    w.cv_.Wait();
-  }
-  assert(!w.prev_);
-  if (w.next_) {
-    w.next_->prev_ = NULL;
-    // if we're the head and we're setting someone else to be the head who wants
-    // to be notified when they become the head, signal them.
-    if (w.next_->wake_me_when_head_) {
-      w.next_->cv_.Signal();
-    }
-  }
-  if (writers_tail_ == &w) {
-    assert(!w.next_);
-    writers_tail_ = NULL;
-  }
-  writers_mutex_.Unlock();
-
-  if (w.has_imm_) {
-    mutex_.Lock();
-    has_imm_.Release_Store(imm_);
-    w.has_imm_ = false;
-    bg_memtable_cv_.Signal();
-    mutex_.Unlock();
-  }
-#endif
 }
 
 bool DBImpl::GetProperty(const Slice& property, std::string* value) {
@@ -2763,16 +2504,12 @@ DB::~DB() { }
 Status DB::Open(const Options& options, const std::string& dbname,
                 DB** dbptr) {
   *dbptr = NULL;
-#if VLOG
 	koo::env = options.env;
-#endif
 #if LEARN
 	koo::file_data = new koo::FileLearnedIndexData();
 	koo::initial_time = __rdtsc();
 #endif
-#if THREADSAFE
 	options.env->SetPrepareDeleteOff();
-#endif
 #if RETRAIN && !RETRAIN2
 	fprintf(stdout, "Learned Model Error: %f, Retraining Threshold: %f\n", koo::learn_model_error, koo::merge_model_error);
 	fflush(stdout);
@@ -2797,11 +2534,9 @@ Status DB::Open(const Options& options, const std::string& dbname,
       impl->logfile_number_ = new_log_number;
       impl->log_.reset(new log::Writer(lfile));
       s = impl->versions_->LogAndApply(&edit, &impl->mutex_, &impl->bg_log_cv_, &impl->bg_log_occupied_);
-#if REMOVE_MUTEX
       impl->mutex_.Unlock();
       impl->current_for_read_.reset(new DBImpl::CurrentForRead(impl));
       impl->mutex_.Lock();
-#endif
     }
     if (s.ok()) {
       impl->DeleteObsoleteFiles();
@@ -2850,13 +2585,8 @@ Status DestroyDB(const std::string& dbname, const Options& options) {
     uint64_t number;
     FileType type;
     for (size_t i = 0; i < filenames.size(); i++) {
-#if VLOG
       if ((ParseFileName(filenames[i], &number, &type) &&
           type != kDBLockFile) || filenames[i].find("vlog") != std::string::npos) {  // Lock file will be deleted at end
-#else
-      if (ParseFileName(filenames[i], &number, &type) &&
-          type != kDBLockFile) {  // Lock file will be deleted at end
-#endif
         Status del = env->DeleteFile(dbname + "/" + filenames[i]);
         if (result.ok() && !del.ok()) {
           result = del;

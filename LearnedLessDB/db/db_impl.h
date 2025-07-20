@@ -93,13 +93,12 @@ class DBImpl : public DB {
   // REQURES: mutex_ not held
   SequenceNumber LastSequence();
 
-#if VLOG
 	std::atomic<int> version_count;
 	koo::VLog* vlog;
-#endif
 #if LEARN
 	Version* GetCurrentVersion();
 	void ReturnCurrentVersion(Version* version);
+	const std::string GetDBName() { return dbname_; }
 #endif
 
  private:
@@ -129,9 +128,7 @@ class DBImpl : public DB {
   static void CompactMemTableWrapper(void* db)
   { reinterpret_cast<DBImpl*>(db)->CompactMemTableThread(); }
   void CompactMemTableThread();
-#if VLOG
   void CompactMemTable(MemTable *table);
-#endif
 
   Status RecoverLogFile(uint64_t log_number,
                         VersionEdit* edit,
@@ -215,10 +212,8 @@ class DBImpl : public DB {
   bool levels_locked_[leveldb::config::kNumLevels];
 #endif
   int num_bg_threads_;
-#if VLOG
   bool bg_mem_job_ = true;
   port::CondVar bg_mem_job_cv_;
-#endif
   // Tell the foreground that background has done something of note
   port::CondVar bg_fg_cv_;
   // Communicate with compaction background thread
@@ -294,11 +289,10 @@ class DBImpl : public DB {
   const Comparator* user_comparator() const {
     return internal_comparator_.user_comparator();
   }
-#if REMOVE_MUTEX
+
   class CurrentForRead;
 
   std::shared_ptr<CurrentForRead> current_for_read_;
-#endif
 };
 
 // Sanitize db options.  The caller should delete result.info_log if

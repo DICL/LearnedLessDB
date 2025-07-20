@@ -18,20 +18,12 @@
 #include <mutex>
 #include <condition_variable>
 
-#define YCSB_CXX 1
 #define YCSB_WRAPPER 1		// produce requests before run workloads + skip writing latency files
 #define YCSB_THROUGHPUTHIST 0	// record throughput history (no latency)
-#define YCSB_LOAD_THREAD 0
-#define YCSB_KEY 0				// 키 생성 미리 안하고 operation 동작 직전에 키 생성 (Load만)
 #define YCSB_COPYDB 1			// SpanDB ycsb load 외 워크로드 전 db copy -> copy한 db에서 워크로드 실험
-#define OFFLINE_FILELEARN 0		// delete db시 남아있는 모든 sst 학습
 #define YCSB_SOSD 0		// records=600M
 
-#define VLOG 1
-#define THREADSAFE 1
 #define MULTI_COMPACTION 1
-#define REMOVE_MUTEX 1			// shared_ptr로 Get 위한 current mem, imm, version 관리 // REMOVE_MUTEX2->REMOVE_MUTEX
-#define REMOVE_MUTEX2 1			// SequenceWriteBegin mutex
 
 #define LEARN 1
 #define NORMARLIZE_KEY 0		// key - min_key. 선분 k, b만
@@ -46,21 +38,12 @@
 #define RETRAIN2 1						// 재학습 대신 error bound 확장
 #define RETRAIN3 1						// 재학습하는 파일은 우선순위 낮게
 
-#define LEVEL0_FILE_LEARN 1000
-
 #define SST_LIFESPAN 0	// level별 SST의 lifespan. table 생성(T) -> model 생성(M) -> model 사용(U)
-#define MIXGRAPH 0
-#define DEBUG 0
 #define AC_TEST 0
-#define AC_TEST_HISTORY 0
 #define AC_TEST2 0		// retrainig threshold test
-#define AC_TEST3 0
 #define TIME_W 0
 #define TIME_R 0
-#define TIME_R_DETAIL 0
 #define TIME_R_LEVEL 0
-#define MULTI_COMPACTION_CNT 0
-#define TIME_MODELCOMP 0		// dbformat.h 주의!
 #define MODELCOMP_TEST 0
 #define MODEL_BREAKDOWN 0
 #define MODEL_ACCURACY 0			// WriteModel시 TestModelAccuracy()
@@ -107,16 +90,6 @@ extern uint64_t num_lm[7];		// # of learned models
 extern uint64_t num_mm[7];		// # of merged models
 #endif
 
-#if TIME_MODELCOMP
-extern uint64_t sum_micros;
-extern uint64_t sum_waitimm;
-#endif
-
-#if YCSB_LOAD_THREAD
-extern bool only_load;
-#endif
-
-#if THREADSAFE
 class SpinLock {
  public:
   SpinLock() : flag_(false){}
@@ -163,10 +136,8 @@ class RWLock {
 	std::atomic<int> reader_count{0};
 	std::atomic<bool> writer_active{false};
 };
-#endif
 
 #if SST_LIFESPAN
-// TODO start time을 hashmap에 기록? FileMetaData에 기록?
 struct FileLifespanData {
 	bool learned;
 	bool merged;
@@ -191,7 +162,6 @@ struct hash_FileLifespanData {
 
 extern std::mutex mutex_lifespan_;
 extern std::unordered_map<uint64_t, FileLifespanData, hash_FileLifespanData> lifespans;		// <file_number, >
-// TODO vector로?
 #endif
 
 #if AC_TEST
@@ -204,14 +174,6 @@ extern std::atomic<uint32_t> num_tryretraining;
 #if RETRAIN2
 extern std::atomic<uint32_t> num_erroradded;
 #endif
-/*extern bool count_compaction_triggered_after_load;
-extern uint64_t time_compaction_triggered_after_load;
-extern uint32_t num_compaction_triggered_after_load;
-extern uint32_t num_inputs_compaction_triggered_after_load;		// input files
-extern uint32_t num_outputs_compaction_triggered_after_load;	// output files
-extern int64_t size_inputs_compaction_triggered_after_load;				// input files
-extern int64_t size_outputs_compaction_triggered_after_load;			// output files*/
-
 extern std::atomic<uint64_t> file_size[7];		// file size per level
 extern std::atomic<uint64_t> num_files[7];
 #endif
@@ -236,12 +198,6 @@ extern std::atomic<uint32_t> served_m_linear_fail;			// merged model linear sear
 
 extern std::atomic<uint64_t> linear_time;
 extern std::atomic<uint32_t> linear_num;
-#endif
-
-#if AC_TEST3
-extern std::atomic<uint32_t> num_files_compaction_[4];
-extern std::atomic<uint32_t> num_files_learned_[4];
-extern std::atomic<uint32_t> num_files_merged_[4];
 #endif
 
 #if TIME_W
@@ -271,20 +227,6 @@ extern uint32_t num_inputs[2][7];
 extern uint32_t num_outputs[2][7];
 #endif
 
-#if TIME_R_DETAIL
-//extern std::atomic<uint32_t> num_mem;
-//extern std::atomic<uint32_t> num_imm;
-extern std::atomic<uint32_t> num_ver;
-//extern std::atomic<uint32_t> num_mem_succ;
-//extern std::atomic<uint32_t> num_imm_succ;
-//extern std::atomic<uint32_t> num_ver_succ;
-//extern std::atomic<uint64_t> time_mem;
-//extern std::atomic<uint64_t> time_imm;
-extern std::atomic<uint64_t> time_ver;
-extern std::atomic<uint32_t> num_vlog;
-extern std::atomic<uint64_t> time_vlog;
-#endif
-
 #if TIME_R
 extern std::atomic<uint32_t> num_i_path;			// # of index block path
 extern std::atomic<uint32_t> num_l_path;			// # of learned model path
@@ -300,19 +242,6 @@ extern std::atomic<uint32_t> num_m_path_l[7];
 extern std::atomic<uint64_t> i_path_l[7];
 extern std::atomic<uint64_t> l_path_l[7];
 extern std::atomic<uint64_t> m_path_l[7];
-/*extern uint32_t num_i_path_l[7];
-extern uint32_t num_l_path_l[7];
-extern uint32_t num_m_path_l[7];
-extern uint64_t i_path_l[7];
-extern uint64_t l_path_l[7];
-extern uint64_t m_path_l[7];*/
-#endif
-
-#if MULTI_COMPACTION_CNT
-extern uint64_t num_PickCompactionLevel;
-extern uint64_t num_PickCompaction;
-extern uint64_t num_compactions;
-extern uint64_t num_output_files;
 #endif
 
 #if MODELCOMP_TEST

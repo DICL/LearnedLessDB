@@ -78,7 +78,6 @@ GreedyPLR::process(const struct point& pt) {
         // impossible
         std::cout << "ERROR in process" << std::endl;
     }
-    //this->llast_pt = this->last_pt;
     this->last_pt = pt;
     return s;
 }
@@ -110,21 +109,8 @@ GreedyPLR::process__(struct point pt) {
     if (!(is_above(pt, this->rho_lower) && is_below(pt, this->rho_upper))) {
       // new point out of error bounds
         Segment prev_segment = current_segment();
-        /*if (!file && (u_int32_t) pt.y % 2 == 1) {			level model만 해당
-          // current point is the largest point in the segments
-            this->s0 = last_pt;
-            this->s1 = pt;
-            setup();
-            this->state = "ready";
-
-            prev_segment.x_last = llast_pt.x;
-            prev_segment.y_last = llast_pt.y;
-
-            return prev_segment;
-        } else {*/
-            this->s0 = pt;
-            this->state = "need1";
-        //}
+        this->s0 = pt;
+        this->state = "need1";
         return prev_segment;
     }
 
@@ -170,19 +156,15 @@ PLR::PLR(double gamma) {
 }
 
 std::vector<Segment>&
-//PLR::train(std::vector<std::string>& keys) {
 PLR::train(std::vector<uint64_t>& keys) {
-//PLR::train(std::vector<Slice>& keys) {
     GreedyPLR plr(this->gamma);
     int count = 0;
     size_t size = keys.size();
-    //bool notEmpty = false;
     uint64_t x = keys[0];
 #if NORMARLIZE_KEY
     uint64_t begin_key = keys[0];
 #endif
     for (int i = 0; i < size; ++i) {
-        //Segment seg = plr.process(point((double) std::stoull(keys[i]), i));
 #if NORMARLIZE_KEY
         uint64_t key = keys[i] - begin_key + 1;
         Segment seg = plr.process(point(static_cast<double>(key), i));
@@ -192,48 +174,21 @@ PLR::train(std::vector<uint64_t>& keys) {
         if (seg.x != 0 ||
             seg.k != 0 ||
             seg.b != 0) {
-#if DEBUG
-						// Learning error? x=x_last, k=-nan, b=nan 인 선분 생성됨
-						// 그냥 앞 선분에 붙이자
-						if (std::isnan(seg.b)) {			// KOO
-							std::cout << "NAN\n";
-						} else {				// 원래 Bourbon*/
-	            this->segments.push_back(seg);
-						}
-						//notEmpty = true;
-#else
 						if (!std::isnan(seg.k)) {
 							seg.x = x;
 							seg.x_last = keys[i-1];
 							if (std::isinf(seg.k)) {
-								//std::cout << "INF segment\n";
-								//std::cout << "(" << seg.x << ", )~(" << seg.x_last << ", " << seg.y_last << "): y = ";
-								//std::cout << seg.k << " * x + " << seg.b << std::endl;
 								uint64_t y = 0;
 								if (this->segments.size()) y = this->segments.back().y_last + 1;
 								double dx = static_cast<double>(seg.x_last - seg.x);
 								double dy = static_cast<double>(seg.y_last - y);
 								seg.k = dy / dx;
 								seg.b = static_cast<double>(y) - seg.k * static_cast<double>(seg.x);
-								//if (std::isnan(seg.k) || std::isinf(seg.k)) std::cout << "Nooooooooooo!!!!!!!!!!!!\n";
-								//if (seg.y_last - y > 8) std::cout << "Noooooooooo?????????\n";
-								//std::cout << "(" << seg.x << ", " << y << ")~(" << seg.x_last << ", " << seg.y_last << "): y = ";
-								//std::cout << seg.k << " * x + " << seg.b << "\n\n";
 							}
 			        this->segments.push_back(seg);
 							x = keys[i];
 						}
-						/*else std::cout << "NAN\n";
-						std::ofstream ofs("/koo/HyperLearningless3/koo/data/plr_test.txt", std::ios::app);
-						ofs << "x: " << seg.x << ", x_last: " << seg.x_last << ", y_last: " << seg.y_last << ", k: " << seg.k << ", b: " << seg.b << std::endl;
-						ofs.close();*/
-#endif
         }
-
-        /*if (!file && ++count % 10 == 0 && adgMod::env->compaction_awaiting.load() != 0) {		// level model만 해당
-            segments.clear();
-            return segments;
-        }*/
     }
 
     Segment last = plr.finish();
@@ -243,9 +198,6 @@ PLR::train(std::vector<uint64_t>& keys) {
 				last.x = x;
 				last.x_last = keys[size-1];
         this->segments.push_back(last);
-				/*std::ofstream ofs("/koo/HyperLearningless3/koo/data/plr_test.txt", std::ios::app);
-				ofs << "x: " << last.x << ", x_last: " << last.x_last << ", k: " << last.k << ", b: " << last.b << std::endl;
-				ofs.close();*/
     }
 
     return this->segments;

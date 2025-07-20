@@ -22,17 +22,12 @@ namespace leveldb {
 namespace config {
 static const unsigned kNumLevels = 7;
 
-#if TIME_MODELCOMP
-static const unsigned kL0_CompactionTrigger = 4;
-static const unsigned kL0_SlowdownWritesTrigger = 8;
-#else
 // Level-0 compaction is started when we hit this many files.
 static const unsigned kL0_CompactionTrigger = 4;
 
 // Soft limit on number of level-0 files.  We could slow down writes at this
 // point, but don't.
 static const unsigned kL0_SlowdownWritesTrigger = 8;
-#endif
 
 // Maximum number of level-0 files.  We could stop writes at this point, but
 // don't.

@@ -388,9 +388,6 @@ Status Version::Get(const ReadOptions& options,
   // in an smaller level, later levels are irrelevant.
   std::vector<FileMetaData*> tmp;
   FileMetaData* tmp2;
-#if DEBUG
-	std::vector<std::pair<std::pair<uint64_t, uint64_t>, int>> files2;
-#endif
   for (unsigned level = 0; level < config::kNumLevels; level++) {
     size_t num_files = files_[level].size();
     if (num_files == 0) continue;
@@ -442,9 +439,6 @@ Status Version::Get(const ReadOptions& options,
       FileMetaData* f = files[i];
       last_file_read = f;
       last_file_read_level = level;
-#if DEBUG
-			files2.push_back(std::make_pair(std::make_pair(f->number, f->file_size), level));
-#endif
 
       Saver saver;
       saver.state = kNotFound;
@@ -475,79 +469,6 @@ Status Version::Get(const ReadOptions& options,
       }
     }
   }
-#if DEBUG
-	//std::cout << "\nVersionSet NotFound\tikey = " << ikey.data() << "\n" << std::endl;
-	for (auto& f : files2) {
-		if (f.second == 0) continue;
-		std::cout << "\n\nfile_number = " << f.first.first << " (level: " << f.second << ")\t";
-		bool retrained = false;
-		koo::LearnedIndexData* m = koo::file_data->GetModel(f.first.first);
-		if (!m->Learned()) std::cout << "Index block\n";
-		else {
-			if (m->Merged()) std::cout << "Merged model\n";
-			else {
-				if (!m->is_retrained_) std::cout << "Learned model\n";
-				else {
-					retrained = true;
-					std::cout << "Retrained model\n";
-				}
-			}
-
-			ParsedInternalKey parsed_key;
-			ParseInternalKey(ikey, &parsed_key);
-			uint64_t target_int = parsed_key.user_key.SliceToInteger();
-			if (retrained) {
-				uint32_t left = 0, right = (uint32_t)(m->string_segments_bak.size()-1);
-				while (left != right - 1) {
-				//while (left < right) {
-					uint32_t mid = (right + left) / 2;
-					if (target_int < m->string_segments_bak[mid].x) right = mid;
-					//else left = mid + 1;
-					else left = mid;
-				}
-				double result = target_int * m->string_segments_bak[left].k + m->string_segments_bak[left].b;
-				double error = m->GetError();
-				uint64_t lower = result - error > 0 ? (uint64_t)std::floor(result - error) : 0;
-				uint64_t upper = (uint64_t)std::ceil(result + error);
-				upper = upper < m->size ? upper : m->size - 1;
-
-				std::cout << "target_int = " << target_int << ", left = " << left << ", size() = " << m->string_segments_bak.size() << std::endl;
-				std::cout << "result = " << result << ", x = " << m->string_segments_bak[left].x << std::endl;
-				std::cout << "lower = " << lower << ", upper = " << upper << ", size = " << m->size << std::endl;
-			} else {
-				uint32_t left = 0, right = (uint32_t)(m->string_segments.size()-1);
-				while (left != right - 1) {
-				//while (left < right) {
-					uint32_t mid = (right + left) / 2;
-					if (target_int < m->string_segments[mid].x) right = mid;
-					//else left = mid + 1;
-					else left = mid;
-				}
-				double result = target_int * m->string_segments[left].k + m->string_segments[left].b;
-				double error = m->GetError();
-				uint64_t lower = result - error > 0 ? (uint64_t)std::floor(result - error) : 0;
-				uint64_t upper = (uint64_t)std::ceil(result + error);
-				upper = upper < m->size ? upper : m->size - 1;
-
-				std::cout << "target_int = " << target_int << ", left = " << left << ", size() = " << m->string_segments.size() << std::endl;
-				std::cout << "result = " << result << ", x = " << m->string_segments[left].x << std::endl;
-				std::cout << "lower = " << lower << ", upper = " << upper << ", size = " << m->size << std::endl;
-			}
-			std::cout << std::endl;
-
-			//if (retrained) {
-				this->Ref();
-				this->TestModelAccuracy(f.first.first, f.first.second);
-				this->Unref();
-				std::ofstream ofs("/koo/HyperLearningless3/koo/data/model_"+std::to_string(f.first.first)+".txt");
-				for (auto& s : m->string_segments_bak) {
-					ofs << "(" << s.x << ", )~(" << s.x_last << ", " << s.y_last << "): y = " << s.k << " * x + " << s.b << "\n";
-				}
-				ofs.close();
-			//}
-		}
-	}
-#endif
   return Status::NotFound(Slice());  // Use an empty error message for speed
 }
 
@@ -1749,9 +1670,6 @@ Compaction* VersionSet::PickCompaction(Version* v, unsigned level) {
 	RegisterCompaction(c);
 	Finalize(c->input_version_);
 #endif
-#if MULTI_COMPACTION_CNT
-	koo::num_compactions++;
-#endif
   return c;
 }
 
@@ -1836,9 +1754,6 @@ Compaction* VersionSet::CompactRange(
 	c->MarkFilesBeingCompacted(true);
 	RegisterCompaction(c);
 	Finalize(c->input_version_);
-#endif
-#if MULTI_COMPACTION_CNT
-	koo::num_compactions++;
 #endif
   return c;
 }

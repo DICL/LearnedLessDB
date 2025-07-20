@@ -38,21 +38,9 @@ RocksDBClient::RocksDBClient(WorkloadProxy* workload_proxy, int num_threads,
     //write_finished(0),
     //read_finished(0) {
 #if YCSB_THROUGHPUTHIST
-#if YCSB_LOAD_THREAD
-	if (workload_proxy_->is_load() && !koo::only_load) {
-	  for (int i = 0; i < YCSB_LOAD_THREAD; i++) {
-		  td_[i] = (thread_data*) aligned_alloc(64, sizeof(thread_data));
-	  }
-	} else {
-	  for (int i = 0; i < num_threads_; i++) {
-		  td_[i] = (thread_data*) aligned_alloc(64, sizeof(thread_data));
-	  }
-	}
-#else
   for (int i = 0; i < num_threads_; i++) {
     td_[i] = (thread_data*) aligned_alloc(64, sizeof(thread_data));
   }
-#endif
 #endif
 #if !YCSB_COPYDB
   if (!db_) {
@@ -102,56 +90,26 @@ void RocksDBClient::Load(){
 
 	int base_coreid = 0;
 
-#if !YCSB_KEY
 	if (workload_wrapper_ == nullptr){
 		workload_wrapper_ = new WorkloadWrapper(workload_proxy_, load_num_, true);
 	}
-#endif
 
   // perfmon
 #if YCSB_THROUGHPUTHIST
-#if YCSB_LOAD_THREAD
-  std::thread perfmon_thread;
-  if (koo::only_load)
-  	perfmon_thread = std::thread(std::bind(&RocksDBClient::perfmon_loop, this));
-#else
   std::thread perfmon_thread = std::thread(std::bind(&RocksDBClient::perfmon_loop, this));
 #endif
-#endif
 
-#if YCSB_LOAD_THREAD
-	uint64_t num;
-	if (koo::only_load) num = load_num_ / num_threads_;
-	else num = load_num_ / YCSB_LOAD_THREAD;
-#else
 	uint64_t num = load_num_ / num_threads_;
-#endif
 	std::vector<std::thread> threads;
 	auto fn = std::bind(&RocksDBClient::RocksdDBLoader, this, 
 						std::placeholders::_1, std::placeholders::_2);
 	printf("start time: %s\n", GetDayTime().c_str());
 	auto start = TIME_NOW;
-#if YCSB_LOAD_THREAD
-	if (koo::only_load) {
-		for(int i=0; i<num_threads_; i++){
-			if(i == num_threads_ - 1)
-				num = num + load_num_ % num_threads_;
-			threads.emplace_back(fn, num, (base_coreid + i));
-		}
-	} else {
-		for(int i=0; i<YCSB_LOAD_THREAD; i++){
-			if(i == YCSB_LOAD_THREAD - 1)
-				num = num + load_num_ % YCSB_LOAD_THREAD;
-			threads.emplace_back(fn, num, (base_coreid + i));
-		}
-	}
-#else
 	for(int i=0; i<num_threads_; i++){
 		if(i == num_threads_ - 1)
 			num = num + load_num_ % num_threads_;
 		threads.emplace_back(fn, num, (base_coreid + i));
 	}
-#endif
 	for(auto &t : threads) {
 		t.join();
 	}
@@ -159,29 +117,10 @@ void RocksDBClient::Load(){
 	printf("end time: %s\n", GetDayTime().c_str());
 #if YCSB_THROUGHPUTHIST
   stop_.store(true);
-#if YCSB_LOAD_THREAD
-  if (koo::only_load && perfmon_thread.joinable()) perfmon_thread.join();
-#else
   if (perfmon_thread.joinable()) perfmon_thread.join();
-#endif
 #endif
 
 	printf("==================================================================\n");
-#if YCSB_LOAD_THREAD
-	if (koo::only_load) {
-		printf("Load Clients: %d\n", num_threads_);
-		PrintArgs();
-		printf("Load %ld requests in %.3lf seconds.\n", load_num_, time/1000/1000);
-#if !YCSB_WRAPPER
-		printf("Load latency: %.3lf us\n", update_time_->Sum()/update_time_->Size());
-		printf("Load median latency: %.3lf us\n", update_time_->Tail(0.5));
-		printf("Load P999: %.3lfus, P99: %.3lfus, P95: %.3lfus, P90: %.3lfus, P75: %.3lfus\n",
-				update_time_->Tail(0.999), update_time_->Tail(0.99), update_time_->Tail(0.95),
-				  update_time_->Tail(0.90), update_time_->Tail(0.75));
-#endif
-		printf("------------------------------------------------------------------\n");
-	} else printf("Load Clients: %d\n", YCSB_LOAD_THREAD);
-#else
 	PrintArgs();
 	printf("Load %ld requests in %.3lf seconds.\n", load_num_, time/1000/1000);
 #if !YCSB_WRAPPER
@@ -192,21 +131,12 @@ void RocksDBClient::Load(){
 		    update_time_->Tail(0.90), update_time_->Tail(0.75));
 #endif
 	printf("------------------------------------------------------------------\n");
-#endif
   printf("Load %c - IOPS: %.3lf M\n", workload_proxy_->name_str().back(), load_num_/time*1000*1000/1000/1000);
 	printf("==================================================================\n");
-#if YCSB_LOAD_THREAD
-	if (koo::only_load) {
-		std::string stat_str2;
-	 	db_->GetProperty("leveldb.stats", &stat_str2);
-		printf("\n%s\n", stat_str2.c_str());
-	}
-#else
 #if !YCSB_WRAPPER
 	std::string stat_str2;
  	db_->GetProperty("leveldb.stats", &stat_str2);
  	printf("\n%s\n", stat_str2.c_str());
-#endif
 #endif
 	fflush(stdout);
 
@@ -469,18 +399,10 @@ void RocksDBClient::RocksdDBLoader(uint64_t num, int coreid){
   //memset(w_value_buf, 'a', 4096);
 	static char w_value_buf[4096];
 	for (int i=0; i<4096; i++) w_value_buf[i] = (char)i;
-#if YCSB_KEY
-	size_t value_len = workload_proxy_->ValueLen();
-#endif
   //RandomGenerator gen;								// db_bench value generator
 
 	for(uint64_t i=0; i<num; i++){		
 		std::string key;
-#if YCSB_KEY
-		workload_proxy_->LoadInsertArgs(key);
-		leveldb::Slice w_value(w_value_buf, value_len);
-		ERR(db_->Put(write_options_, key, w_value));
-#else
 		WorkloadWrapper::Request *req = workload_wrapper_->GetNextRequest();
 		/*ycsbc::Operation opt = req->Type();
 		assert(req != nullptr);
@@ -492,7 +414,6 @@ void RocksDBClient::RocksdDBLoader(uint64_t num, int coreid){
     ERR(db_->Put(write_options_, req->Key(), w_value));
     //ERR(db_->Put(write_options_, req->Key(), gen.Generate(req->Length())));
 //fprintf(stderr, "load key: %s\n", req->Key().c_str());
-#endif
 #if !YCSB_WRAPPER
     double time = TIME_DURATION(start, TIME_NOW);
     request_time.Insert(time);
@@ -533,27 +454,11 @@ void RocksDBClient::Reset(){
 #endif
 
 #if YCSB_THROUGHPUTHIST
-#if YCSB_LOAD_THREAD
-	if (workload_proxy_->is_load() && !koo::only_load) {
-		for (int i = 0; i < YCSB_LOAD_THREAD; i++) {
-			if (td_[i]) {
-				memset(td_[i], 0, sizeof(thread_data));
-	    }
-		}
-	} else {
-		for (int i = 0; i < num_threads_; i++) {
-			if (td_[i]) {
-				memset(td_[i], 0, sizeof(thread_data));
-	    }
-		}
-	}
-#else
   for (int i = 0; i < num_threads_; i++) {
     if (td_[i]) {
       memset(td_[i], 0, sizeof(thread_data));
     }
   }
-#endif
   stop_.store(false);
 #endif
 }
@@ -619,9 +524,6 @@ void RocksDBClient::perfmon_loop() {
   double write_throughput = 0;
   double read_throughput = 0;
 
-#if AC_TEST && AC_TEST_HISTORY && TIME_R
-	bool load = workload_proxy_->is_load() ? true : false;
-#endif
   while (!stop_.load()) {
     // timestamp
     auto tp_now = std::chrono::steady_clock::now();
@@ -634,14 +536,7 @@ void RocksDBClient::perfmon_loop() {
     uint64_t total_cnt_now = 0;
     uint64_t write_cnt_now = 0;
     uint64_t read_cnt_now = 0;
-#if YCSB_LOAD_THREAD
-		int num_threads__;
-		if (workload_proxy_->is_load() && !koo::only_load) num_threads__ = YCSB_LOAD_THREAD;
-		else num_threads__ = num_threads_;
-		for (int i=0; i<num_threads__; i++) {
-#else
     for (int i = 0; i < num_threads_; i++) {
-#endif
       if (td_[i]) {
         total_cnt_now += td_[i]->total_finished_requests;
         write_cnt_now += td_[i]->write_finished;
@@ -656,28 +551,10 @@ void RocksDBClient::perfmon_loop() {
     read_throughput = (double) read_cnt_inc / dur;
      
     static char writebuf[200];
-#if AC_TEST && AC_TEST_HISTORY
-		/*auto now = std::chrono::system_clock::now();
-		time_t tm_now = std::chrono::system_clock::to_time_t(now);
-		struct tm tstruct = *localtime(&tm_now);
-    sprintf(writebuf, "*** %02d:%02d:%02d timestamp: %.3lf - Throughput: %.3lf Mops/s (Write: %.3lf Mops/s, Read: %.3lf Mops/s) *** %lu %lu %lu %lu %lu\n", tstruct.tm_hour, tstruct.tm_min, tstruct.tm_sec, timestamp, total_throughput/1000/1000, write_throughput/1000/1000, read_throughput/1000/1000, koo::num_files_flush, koo::num_files_compaction, koo::num_learned, koo::num_merged, koo::num_retrained);*/
-#if TIME_R
-		if (load) {
-	    sprintf(writebuf, "*** timestamp: %.3lf - Throughput: %.3lf Mops/s (Write: %.3lf Mops/s, Read: %.3lf Mops/s) *** %lu %lu %lu %lu %lu\n", timestamp, total_throughput/1000/1000, write_throughput/1000/1000, read_throughput/1000/1000, koo::num_files_flush, koo::num_files_compaction, koo::num_learned, koo::num_merged, koo::num_retrained);
-		} else {
-	    sprintf(writebuf, "*** timestamp: %.3lf - Throughput: %.3lf Mops/s (Write: %.3lf Mops/s, Read: %.3lf Mops/s) *** %lu %lu %lu %lu %lu %u %u %u\n", timestamp, total_throughput/1000/1000, write_throughput/1000/1000, read_throughput/1000/1000, koo::num_files_flush, koo::num_files_compaction, koo::num_learned, koo::num_merged, koo::num_retrained, koo::num_i_path.load(), koo::num_l_path.load(), koo::num_m_path.load());
-		}
-#else
-    sprintf(writebuf, "*** timestamp: %.3lf - Throughput: %.3lf Mops/s (Write: %.3lf Mops/s, Read: %.3lf Mops/s) *** %lu %lu %lu %lu %lu\n", timestamp, total_throughput/1000/1000, write_throughput/1000/1000, read_throughput/1000/1000, koo::num_files_flush, koo::num_files_compaction, koo::num_learned, koo::num_merged, koo::num_retrained);
-#endif
-#else
 		time_t timer = time(NULL);
 		struct tm* t = localtime(&timer);
     sprintf(writebuf, "%d:%d:%d *** timestamp: %.3lf - Throughput: %.3lf Mops/s (Write: %.3lf Mops/s, Read: %.3lf Mops/s) ***\n", t->tm_hour, t->tm_min, t->tm_sec, timestamp, total_throughput/1000/1000, write_throughput/1000/1000, read_throughput/1000/1000);
-    //sprintf(writebuf, "*** timestamp: %.3lf - Throughput: %.3lf Mops/s (Write: %.3lf Mops/s, Read: %.3lf Mops/s) ***\n", timestamp, total_throughput/1000/1000, write_throughput/1000/1000, read_throughput/1000/1000);
-#endif
     outfile << writebuf;
-    //fprintf(stdout, "*** timestamp: %.3lf - Throughput: %.3lf Mops/s (Write: %.3lf Mops/s, Read: %.3lf Mops/s) ***\n", timestamp, total_throughput/1000/1000, write_throughput/1000/1000, read_throughput/1000/1000);
 
     tp_last = tp_now;
     total_cnt_last = total_cnt_now;

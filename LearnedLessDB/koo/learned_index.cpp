@@ -264,9 +264,6 @@ uint64_t LearnedIndexData::FileLearn(void* arg) {
 #if AC_TEST
 			koo::num_learned++;
 #endif
-#if AC_TEST3
-			koo::num_files_learned_[self->level]++;
-#endif
 #if MODEL_BREAKDOWN
 			koo::lm_num[self->level]++;
 			koo::lm_keys[self->level] += self->size;

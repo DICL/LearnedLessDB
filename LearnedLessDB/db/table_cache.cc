@@ -231,13 +231,6 @@ Status TableCache::ModelGet(uint64_t file_number, uint64_t file_size, const Slic
   // Get the data block index
   size_t index_lower = lower / koo::block_num_entries;
   size_t index_upper = upper / koo::block_num_entries;
-#if DEBUG && MERGE
-	if (isMergedModel && index_upper - index_lower > 1) {
-		std::cout << __LINE__ << ": [" << file_number << "] (Merged)\n";
-		std::cout << "lower = " << lower << ", upper = " << upper << ", block_num_entries = " << koo::block_num_entries << std::endl;
-		std::cout << "index_lower = " << index_lower << ", index_upper = " << index_upper << std::endl;
-	}
-#endif
 
   // if the given interval overlaps two data block, consult the index block to get
   // the largest key in the first data block and compare it with the target key

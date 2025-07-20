@@ -132,17 +132,6 @@ class Env {
   // REQUIRES: lock has not already been unlocked.
   virtual Status UnlockFile(FileLock* lock) = 0;
 
-#if MIXGRAPH
-	// Priority for requesting bytes in rate limiter scheduler
-  enum IOPriority { 
-  	IO_LOW = 0, 
-  	IO_MID = 1,
-  	IO_HIGH = 2,
-  	IO_USER = 3,
-  	IO_TOTAL = 4
-  };
-#endif
-
   // Arrange to run "(*function)(arg)" once in a background thread.
   //
   // "function" may run in an unspecified thread.  Multiple functions
@@ -169,9 +158,6 @@ class Env {
   // Returns the number of micro-seconds since some fixed point in time. Only
   // useful for computing deltas of time.
   virtual uint64_t NowMicros() = 0;
-#if MIXGRAPH
-  virtual uint64_t NowNanos() = 0;
-#endif
 
   // Sleep/delay the thread for the perscribed number of micro-seconds.
   virtual void SleepForMicroseconds(int micros) = 0;
@@ -182,10 +168,8 @@ class Env {
 #else
 	virtual void PrepareLearning(int level, FileMetaData* meta) {};
 #endif
-#if THREADSAFE
 	virtual void StopLearning() {};
 	virtual void SetPrepareDeleteOff() {};
-#endif
 #endif
 
  private:

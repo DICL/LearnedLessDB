@@ -43,15 +43,6 @@ uint64_t num_lm[7];		// # of learned models
 uint64_t num_mm[7];		// # of merged models
 #endif
 
-#if TIME_MODELCOMP
-uint64_t sum_micros = 0;
-uint64_t sum_waitimm = 0;
-#endif
-
-#if YCSB_LOAD_THREAD
-bool only_load = false;
-#endif
-
 #if SST_LIFESPAN
 std::mutex mutex_lifespan_;
 std::unordered_map<uint64_t, FileLifespanData, hash_FileLifespanData> lifespans;
@@ -67,14 +58,6 @@ std::atomic<uint32_t> num_tryretraining = 0;
 #if RETRAIN2
 std::atomic<uint32_t> num_erroradded = 0;
 #endif
-/*bool count_compaction_triggered_after_load = false;
-uint64_t time_compaction_triggered_after_load = 0;
-uint32_t num_compaction_triggered_after_load = 0;
-uint32_t num_inputs_compaction_triggered_after_load = 0;		// input files
-uint32_t num_outputs_compaction_triggered_after_load = 0;	// output files
-int64_t size_inputs_compaction_triggered_after_load = 0;				// input files
-int64_t size_outputs_compaction_triggered_after_load = 0;			// output files*/
-
 std::atomic<uint64_t> file_size[7];		// file size per level
 std::atomic<uint64_t> num_files[7];
 #endif
@@ -95,12 +78,6 @@ std::atomic<uint32_t> served_m_linear_fail(0);
 
 std::atomic<uint64_t> linear_time(0);
 std::atomic<uint32_t> linear_num(0);
-#endif
-
-#if AC_TEST3
-std::atomic<uint32_t> num_files_compaction_[4];
-std::atomic<uint32_t> num_files_learned_[4];
-std::atomic<uint32_t> num_files_merged_[4];
 #endif
 
 #if TIME_W
@@ -130,20 +107,6 @@ uint32_t num_inputs[2][7];
 uint32_t num_outputs[2][7];
 #endif
 
-#if TIME_R_DETAIL
-/*std::atomic<uint32_t> num_mem(0);
-std::atomic<uint32_t> num_imm(0);
-std::atomic<uint32_t> num_mem_succ(0);
-std::atomic<uint32_t> num_imm_succ(0);
-std::atomic<uint32_t> num_ver_succ(0);
-std::atomic<uint64_t> time_mem(0);
-std::atomic<uint64_t> time_imm(0);*/
-std::atomic<uint32_t> num_ver(0);
-std::atomic<uint64_t> time_ver(0);
-std::atomic<uint32_t> num_vlog(0);
-std::atomic<uint64_t> time_vlog(0);
-#endif
-
 #if TIME_R
 std::atomic<uint32_t> num_i_path(0);
 std::atomic<uint32_t> num_l_path(0);
@@ -159,19 +122,6 @@ std::atomic<uint32_t> num_m_path_l[7];
 std::atomic<uint64_t> i_path_l[7];
 std::atomic<uint64_t> l_path_l[7];
 std::atomic<uint64_t> m_path_l[7];
-/*uint32_t num_i_path_l[7];
-uint32_t num_l_path_l[7];
-uint32_t num_m_path_l[7];
-uint64_t i_path_l[7];
-uint64_t l_path_l[7];
-uint64_t m_path_l[7];*/
-#endif
-
-#if MULTI_COMPACTION_CNT
-uint64_t num_PickCompactionLevel = 0;
-uint64_t num_PickCompaction = 0;
-uint64_t num_compactions = 0;
-uint64_t num_output_files = 0;
 #endif
 
 #if MODELCOMP_TEST
@@ -225,22 +175,12 @@ void Report() {
 		std::cout << "# try retraining files = " << koo::num_tryretraining << std::endl;
 		std::cout << "# merged models error extended = " << koo::num_erroradded << std::endl;
 #endif
-		/*std::cout << "\n# input files of compaction triggered after load = " << koo::num_inputs_compaction_triggered_after_load << ",\tTotal size = " << koo::size_inputs_compaction_triggered_after_load << std::endl;
-		std::cout << "# output files of compaction triggered after load = " << koo::num_outputs_compaction_triggered_after_load << ",\tTotal size = " << koo::size_outputs_compaction_triggered_after_load << std::endl;
-		std::cout << "# compaction triggered after load = " << koo::num_compaction_triggered_after_load << std::endl;
-		std::cout << "Avg compaction time triggered after load = " << std::to_string((double)koo::time_compaction_triggered_after_load/((double)koo::num_compaction_triggered_after_load)) << " ns,\ttotal = " << koo::time_compaction_triggered_after_load << std::endl;*/
 		for (int i=0; i<7; i++) {
 			if (num_files[i] == 0) continue;
 			std::cout << "Level " << i << " avg file size: " << std::to_string(file_size[i]/((double)num_files[i])) << " B (num: " << num_files[i] << ")\n";
 		}
 		std::cout << "----------------------------------------------------------" << std::endl;
 	}
-#endif
-#if TIME_MODELCOMP
-	std::cout << "----------------------------------------------------------" << std::endl;
-	std::cout << "Sum micros: " << koo::sum_micros/1000 << std::endl;
-	std::cout << "Sum wait imm: " << koo::sum_waitimm << std::endl;
-	std::cout << "----------------------------------------------------------" << std::endl;
 #endif
 #if MODEL_BREAKDOWN
 	for (int i=0; i<7; i++) {
@@ -378,18 +318,6 @@ void Report() {
 	}
 	std::cout << "----------------------------------------------------------" << std::endl;
 #endif
-#if AC_TEST3
-	if (koo::num_files_compaction_[1]) {
-		std::cout << "----------------------------------------------------------" << std::endl;
-		for (int i=0; i<4; i++) {
-			std::cout << "[ Level " << i << " ]\n";
-			std::cout << "\t# compaction files: " << koo::num_files_compaction_[i] << std::endl;
-			std::cout << "\t# learned files: " << koo::num_files_learned_[i] << std::endl;
-			std::cout << "\t# merged files: " << koo::num_files_merged_[i] << std::endl;
-		}
-		std::cout << "----------------------------------------------------------" << std::endl;
-	}
-#endif
 #if TIME_W
 	if (koo::num_learntime || koo::num_compactiontime2[0][1] || koo::num_compactiontime2[1][2] || koo::num_mergetime) {
 		/*std::cout << "----------------------------------------------------------" << std::endl;
@@ -478,27 +406,6 @@ void Report() {
 		std::cout << "Total # path: " << total_num_path << ", total time: " << total_time << " s\n";
 		std::cout << "# IB path / total = " << std::to_string(total_num_i_path/(double)total_num_path) << ",\t# model path / total = " << std::to_string(total_num_model_path/(double)total_num_path) << std::endl;
 		std::cout << "# learned model path / # model path = " << std::to_string(total_num_l_path/(double)total_num_model_path) << ",\t# merged model path / # model path = " << std::to_string(total_num_m_path/(double)total_num_model_path) << std::endl;
-		std::cout << "----------------------------------------------------------" << std::endl;
-	}
-#endif
-#if TIME_R_DETAIL
-	if (/*koo::num_mem ||*/ koo::num_ver) {
-		std::cout << "----------------------------------------------------------" << std::endl;
-		//std::cout << "[ MEM ]\nTotal num: " << koo::num_mem << ",\tFound num: " << koo::num_mem_succ << ",\tTotal time: " << std::to_string(koo::time_mem) << " ns,\tAVG: " << std::to_string(koo::time_mem/((double)koo::num_mem)) << " ns" << std::endl;
-		//std::cout << "[ IMM ]\nTotal num: " << koo::num_imm << ",\tFound num: " << koo::num_imm_succ << ",\tTotal time: " << std::to_string(koo::time_imm) << " ns,\tAVG: " << std::to_string(koo::time_imm/((double)koo::num_imm)) << " ns" << std::endl;
-		//std::cout << "[ VER ]\nTotal num: " << koo::num_ver << ",\tFound num: " << koo::num_ver_succ << ",\tTotal time: " << std::to_string(koo::time_ver) << " ns,\tAVG: " << std::to_string(koo::time_ver/((double)koo::num_ver)) << " ns" << std::endl;
-		std::cout << "[ VER ]\nTotal num: " << koo::num_ver << ",\tTotal time: " << std::to_string(koo::time_ver) << " ns,\tAVG: " << std::to_string(koo::time_ver/((double)koo::num_ver)) << " ns" << std::endl;
-		std::cout << "[ VLOG ]\nTotal num: " << koo::num_vlog << ",\tTotal time: " << std::to_string(koo::time_vlog) << " ns,\tAVG: " << std::to_string(koo::time_vlog/((double)koo::num_vlog)) << " ns" << std::endl;
-		std::cout << "----------------------------------------------------------" << std::endl;
-	}
-#endif
-#if MULTI_COMPACTION_CNT
-	if (koo::num_PickCompaction) {
-		std::cout << "----------------------------------------------------------" << std::endl;
-		std::cout << "# PickCompactionLevel() called: " << koo::num_PickCompactionLevel << std::endl;
-		std::cout << "# PickCompaction() called: " << koo::num_PickCompaction << std::endl;
-		std::cout << "# Compactions: " << koo::num_compactions << std::endl;
-		std::cout << "# Compaction output files: " << koo::num_output_files << std::endl;
 		std::cout << "----------------------------------------------------------" << std::endl;
 	}
 #endif

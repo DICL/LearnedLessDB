@@ -33,7 +33,6 @@
 #include "hyperleveldb/comparator.h"
 #include "hyperleveldb/table_builder.h"
 #include "util/coding.h"
-#include "koo/koo.h"
 
 namespace leveldb {
 
@@ -83,16 +82,6 @@ void BlockBuilder::Add(const Slice& key, const Slice& value) {
 #endif
   size_t shared = 0;
   if (counter_ < options_->block_restart_interval) {
-#if !VLOG		// KOO
-		// data block 내 entry compression하는 코드 -> 빼야 koo::block_num_entries, koo::block_size  같아진다
-    // See how much sharing to do with previous string
-    const size_t min_length = std::min(last_key_piece.size(), key.size());
-    const char* A = last_key_piece.data();
-    const char* B = key.data();
-    while ((shared < min_length) && (A[shared] == B[shared])) {
-      ++shared;
-    }
-#endif
   } else {
     // Restart compression
     restarts_.push_back(buffer_.size());
@@ -114,11 +103,6 @@ void BlockBuilder::Add(const Slice& key, const Slice& value) {
   last_key_.append(key.data() + shared, non_shared);
   assert(last_key_.slice() == key);
   counter_++;
-
-  /*if (non_shared != 24) {		// KOOO
-  	fprintf(stdout, "non_shared != 24\tkey.size(): %lu, %lu %lu, value.size(): %lu\n", 
-						key.size(), shared, non_shared, value.size());
-	}*/
 }
 
 }  // namespace leveldb

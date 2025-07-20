@@ -255,31 +255,13 @@ inline std::string CoreWorkload::BuildKeyName(uint64_t key_num) {
 	}
 	return result;
 #else
-  /*std::cout << "key_num = " << key_num << std::endl;
-  std::cout << "string = " << std::to_string(key_num) << std::endl;
-  std::cout << "string size = " << std::to_string(key_num).size() << std::endl;
-  std::cout << std::endl;*/
-
-  std::string key_str = std::to_string(key_num);				// YCSB_CXX
+  std::string key_str = std::to_string(key_num);
   key_str = key_str.substr(0, 16);
   if (key_str.size() < 16) {
   	int i = 16 - key_str.size();
   	for (int j=0; j<i; j++) key_str = key_str.append(std::string("0"));
 	}
-	/*try {
-		uint64_t tmp = std::stoull(key_str);
-	} catch (std::invalid_argument d) {
-		std::cout << "CoreWorkload::BuildKeyName invalid argument stoull\tkey = " << key_str << ", " << key_num  << std::endl;
-	}*/
-	return key_str;									// key.size() = 16 = db_bench key size
-
-  /*int i = 20 - key_str.size();
-  for (int j=0; j<i; j++) key_str = key_str.append(std::string("0"));
-  return key_str;*/																			// key.size() = 20
-  //return std::string("user").append(key_str);				// key.size() = 24
-  // TODO db_bench랑 키 길이 같게 맞출까?
-
-  //return std::string("user").append(std::to_string(key_num));			// default
+	return key_str;
 #endif
 
 #endif

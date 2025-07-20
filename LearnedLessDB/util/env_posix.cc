@@ -598,7 +598,6 @@ class PosixEnv : public Env {
     if (fd < 0) {
       s = IOError(fname, errno);
     }
-#if VLOG
 		else if (!mmap_limit_.Acquire() || fname.find("vlog") != std::string::npos) {
 			posix_fadvise(fd, 0, 0, POSIX_FADV_RANDOM);
 			*result = new PosixRandomAccessFile(fname, fd);
@@ -619,42 +618,17 @@ class PosixEnv : public Env {
 			mmap_limit_.Release();
 		}
 		return s;
-#else
-    else if (mmap_limit_.Acquire()) {
-      uint64_t size;
-      s = GetFileSize(fname, &size);
-      if (s.ok()) {
-        void* base = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
-        if (base != MAP_FAILED) {
-          *result = new PosixMmapReadableFile(fname, base, size, &mmap_limit_);
-        } else {
-          s = IOError(fname, errno);
-        }
-      }
-      close(fd);
-      if (!s.ok()) {
-        mmap_limit_.Release();
-      }
-    } else {
-      *result = new PosixRandomAccessFile(fname, fd);
-    }
-    return s;
-#endif
   }
 
   virtual Status NewWritableFile(const std::string& fname,
                                  WritableFile** result) {
 		Status s;
-#if VLOG
 		FILE* f;
 		if (fname.find("vlog") != std::string::npos) {
 			f = fopen(fname.c_str(), "a+");
 		} else {
 			f = fopen(fname.c_str(), "w");
 		}
-#else
-    FILE* f = fopen(fname.c_str(), "w");
-#endif
     if (f == NULL) {
       *result = NULL;
       s = IOError(fname, errno);
@@ -864,28 +838,14 @@ class PosixEnv : public Env {
     return static_cast<uint64_t>(tv.tv_sec) * 1000000 + tv.tv_usec;
   }
 
-#if MIXGRAPH
-  virtual uint64_t NowNanos() {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return static_cast<uint64_t>(ts.tv_sec) * 1000000000 + ts.tv_nsec;
-	}
-#endif
-
   virtual void SleepForMicroseconds(int micros) {
-/*#if TIME_MODELCOMP
-  	koo::sum_micros += micros;
-#endif*/
-
     usleep(micros);
   }
 
 #if LEARN
 	void PrepareLearn() {
 		prepare_queue_mutex_.Lock();
-#if THREADSAFE
 		running_learning_threads++;
-#endif
 
 		// dead lookp
 		while(true) {
@@ -894,17 +854,11 @@ class PosixEnv : public Env {
 #else
 			while (learning_prepare.empty()) {
 #endif
-#if THREADSAFE
 				if (prepare_delete) break;
-#endif
 				preparing_queue_cv_.Wait();
-#if THREADSAFE
 				if (prepare_delete) break;
-#endif
 			}
-#if THREADSAFE
 			if (prepare_delete) break;
-#endif
 
 #if RETRAIN3
 			while (!high_q.empty() || !low_q.empty()) {
@@ -953,23 +907,50 @@ class PosixEnv : public Env {
 #else
 				learning_prepare.pop();
 #endif
-#if THREADSAFE
 				if (prepare_delete) break;
-#endif
 			}
-#if THREADSAFE
 			if (prepare_delete) break;
+		}
+#if RETRAIN3
+		fprintf(stdout, "Write learning_pq size: %ld\n", high_q.size());
+#else
+		fprintf(stdout, "Write learning_pq size: %ld\n", learning_prepare.size());
+#endif
+		if (koo::db->GetDBName() != "/mnt-koo/db_mix") {
+		std::ofstream ofs(koo::db->GetDBName() + koo::model_dbname + "/lqueue", std::ios::binary);
+
+#if RETRAIN3
+		size_t q_size = high_q.size();
+#else
+		size_t q_size = learning_prepare.size();
+#endif
+		ofs.write(reinterpret_cast<const char*>(&q_size), sizeof(size_t));
+#if RETRAIN3
+		while (!high_q.empty()) {
+			auto& top = high_q.front();
+#else
+		while (!learning_prepare.empty()) {
+			auto& top = learning_prepare.front();
+#endif
+			ofs.write(reinterpret_cast<const char*>(&top.first), sizeof(int));	// level
+			FileMetaData* meta = top.second;
+			ofs.write(reinterpret_cast<const char*>(&meta->number), sizeof(uint64_t));
+			ofs.write(reinterpret_cast<const char*>(&meta->file_size), sizeof(uint64_t));
+			delete meta;
+#if RETRAIN3
+			high_q.pop();
+#else
+			learning_prepare.pop();
 #endif
 		}
-#if THREADSAFE
-		// TODO meta들 delete
+		ofs.close();
+		}
 		prepare_queue_mutex_.Unlock();
 		running_learning_threads--;
 		if (running_learning_threads == 0) {
 			std::unique_lock<std::mutex> lock(stop_mutex);
 			stop_cv.notify_one();
 		}
-#endif
 	}
 
 	static void PrepareLearnEntryPoint(PosixEnv* env) {
@@ -981,18 +962,36 @@ class PosixEnv : public Env {
 #else
 	void PrepareLearning(int level, FileMetaData* meta) {
 #endif
-#if THREADSAFE
 		if (prepare_delete) return;
 		prepare_queue_mutex_.Lock();
 		if (prepare_delete) {
 			prepare_queue_mutex_.Unlock();
 			return;
 		}
-#else
-		MutexLock guard(&prepare_queue_mutex_);
-#endif
 		if (!preparing_thread_started) {
 			preparing_thread_started = true;
+			// Read learning queue info
+			std::ifstream ifs(koo::db->GetDBName() + koo::model_dbname + "/lqueue", std::ios::binary);
+			if (ifs.good()) {
+				size_t q_size;
+				ifs.read(reinterpret_cast<char*>(&q_size), sizeof(size_t));
+				fprintf(stdout, "Read learning_pq size: %ld\n", q_size);
+				for (size_t i=0; i<q_size; i++) {
+					int level_;
+					ifs.read(reinterpret_cast<char*>(&level_), sizeof(int));
+					FileMetaData* meta_ = new FileMetaData();
+					ifs.read(reinterpret_cast<char*>(&meta_->number), sizeof(uint64_t));
+					ifs.read(reinterpret_cast<char*>(&meta_->file_size), sizeof(uint64_t));
+					meta_->smallest = InternalKey();
+					meta_->largest = InternalKey();
+#if RETRAIN3
+					high_q.push(std::make_pair(level_, meta_));
+#else
+					learning_prepare.push(std::make_pair(level_, meta_));
+#endif
+				}
+				ifs.close();
+			}
 			std::thread background_thread(PosixEnv::PrepareLearnEntryPoint, this);
 			background_thread.detach();
 		}
@@ -1007,13 +1006,10 @@ class PosixEnv : public Env {
 		} else learning_prepare.emplace(std::make_pair(level, meta));*/
 		learning_prepare.emplace(std::make_pair(level, meta));
 #endif
-#if THREADSAFE
 		prepare_queue_mutex_.Unlock();
-#endif
 		preparing_queue_cv_.Signal();		// learning thread 1개여서
 	}
 
-#if THREADSAFE
 	void StopLearning() {
 		if (prepare_delete) return;
 		prepare_delete = true;
@@ -1027,7 +1023,6 @@ class PosixEnv : public Env {
 	void SetPrepareDeleteOff() {
 		prepare_delete = false;
 	}
-#endif
 #endif
 
  private:
@@ -1074,12 +1069,10 @@ class PosixEnv : public Env {
 	bool preparing_thread_started;
 	port::Mutex prepare_queue_mutex_;
   port::CondVar preparing_queue_cv_;
-#if THREADSAFE
 	bool prepare_delete = false;
 	std::atomic<int> running_learning_threads{0};
 	std::mutex stop_mutex;
 	std::condition_variable stop_cv;
-#endif
 #endif
 };
 
@@ -1093,9 +1086,7 @@ PosixEnv::PosixEnv() : page_size_(getpagesize()),
 #if LEARN
 											 preparing_thread_started(false),
 											 preparing_queue_cv_(&prepare_queue_mutex_),
-#if THREADSAFE
 											 prepare_delete(false),
-#endif
 #endif
                        mmap_limit_() {
   PthreadCall("mutex_init", pthread_mutex_init(&mu_, NULL));
