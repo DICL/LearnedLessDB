@@ -23,7 +23,7 @@ num_threads=32
 num_bg=8
 num_l=4
 learned_error_bound=8
-mod=0			# 0: HyperBourbon(CBA), 1: HyperBourbon(Always), 2: HyperWiscKey
+mod=2			# 0: HyperBourbon(CBA), 1: HyperBourbon(Always), 2: HyperWiscKey
 db_path="/mnt-koo/db"
 
 
